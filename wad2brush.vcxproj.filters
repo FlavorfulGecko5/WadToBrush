@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="WadParser">
+      <UniqueIdentifier>{25f49025-a2a9-433c-87b7-c68b40329924}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Wad2Brush">
+      <UniqueIdentifier>{fcf13271-d55a-425b-bc24-3ef4042acb1d}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\wadparser\BinaryReader.cpp">
+      <Filter>WadParser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Wad2Brush.cpp">
+      <Filter>Wad2Brush</Filter>
+    </ClCompile>
+    <ClCompile Include="src\wadparser\WadStructs.cpp">
+      <Filter>WadParser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BrushBuilder.cpp">
+      <Filter>Wad2Brush</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\wadparser\BinaryReader.h">
+      <Filter>WadParser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\wadparser\WadStructs.h">
+      <Filter>WadParser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\BrushBuilder.h">
+      <Filter>Wad2Brush</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
