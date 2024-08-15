@@ -68,8 +68,8 @@ bool WadLevel::ReadFrom(BinaryReader &reader) {
 		reader.ReadLE(s.texXOffset);
 		reader.ReadLE(s.texYOffset);
 		s.upperTexture.ReadFrom(reader);
-		s.middleTexture.ReadFrom(reader);
 		s.lowerTexture.ReadFrom(reader);
+		s.middleTexture.ReadFrom(reader);
 		reader.ReadLE(s.sector);
 	}
 
@@ -85,6 +85,11 @@ bool WadLevel::ReadFrom(BinaryReader &reader) {
 		reader.ReadLE(s.lightLevel);
 		reader.ReadLE(s.specialType);
 		reader.ReadLE(s.tagNumber);
+
+		if(s.floorHeight < minHeight)
+			minHeight = s.floorHeight;
+		if(s.ceilingHeight > maxHeight)
+			maxHeight = s.ceilingHeight;
 	}
 
 

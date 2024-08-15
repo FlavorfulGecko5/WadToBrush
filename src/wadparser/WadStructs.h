@@ -47,6 +47,10 @@ class WadString {
 		return strcmp(data, stringB) == 0;
 	}
 
+	bool operator!=(const char* stringB) {
+		return strcmp(data, stringB) != 0;
+	}
+
 	void ReadFrom(BinaryReader& reader) {
 		reader.ReadBytes(data, LENGTH_WADSTRING);
 	}
@@ -161,6 +165,9 @@ struct WadLevel {
 	WadArray<LineDef> linedefs;
 	WadArray<SideDef> sidedefs;
 	WadArray<Sector> sectors;
+
+	int16_t maxHeight = SHRT_MIN;
+	int16_t minHeight = SHRT_MAX;
 
 	bool ReadFrom(BinaryReader &reader);
 	void Debug();

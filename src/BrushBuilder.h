@@ -41,7 +41,7 @@ struct WallBrush {
 	Plane bounds[6];
 	int lineIndex;
 
-	WallBrush(VertexFloat v0, VertexFloat v1, int p_lineIndex) : lineIndex(100000000 + p_lineIndex)  
+	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, int p_lineIndex) : lineIndex(100000000 + p_lineIndex)  
 	{
 		Vector horizontal(v0, v1);
 
@@ -70,11 +70,11 @@ struct WallBrush {
 
 		// Plane 4: Upper Bound:
 		bounds[4].n = Vector(0, 0, 1);
-		bounds[4].d = 25;
+		bounds[4].d = maxHeight;
 
 		// Plane 5: Lower Bound
 		bounds[5].n = Vector(0, 0, -1);
-		bounds[5].d = 25;
+		bounds[5].d = minHeight * -1;
 
 	}
 
