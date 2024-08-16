@@ -37,9 +37,9 @@ struct Plane {
 
 struct WallBrush {
 	Plane bounds[6];
-	int lineIndex;
+	int brushHandle;
 
-	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, int p_lineIndex) : lineIndex(100000000 + p_lineIndex)  
+	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, int lineIndex) : brushHandle(100000000 + lineIndex)  
 	{
 		Vector horizontal(v0, v1);
 
@@ -77,8 +77,51 @@ struct WallBrush {
 	}
 
 	void ToString(std::ostringstream& writer) {
-		writer << "{\n\thandle = " << lineIndex << "\n\tbrushDef3 {";
+		writer << "{\n\thandle = " << brushHandle << "\n\tbrushDef3 {";
 		for (int i = 0; i < 6; i++) {
+			writer << "\n\t\t";
+			bounds[i].ToString(writer);
+		}
+		writer << "\n\t}\n}\n";
+	}
+};
+
+struct FloorBrush {
+	Plane bounds[5];
+	int brushHandle;
+
+	FloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float minHeight, float maxHeight, int index)
+		: brushHandle(110000000 + index)
+	{
+		// EarCut yields the points in clockwise order.
+		// Hence we must do <0, 0, 1> X horizontal, not the other way around
+		// to ensure the normal faces away from the brush
+		// Update: No they don't. Cross horizontal X <0, 0, 1> as with wall brushes
+
+		// Plane 0 - First Wall
+		Vector horizontal(a, b);
+		bounds[0].SetFrom(Vector(horizontal.y, -horizontal.x, 0), a);
+
+		// Plane 1 - Second Wall
+		horizontal =  Vector(b, c);
+		bounds[1].SetFrom(Vector(horizontal.y, -horizontal.x, 0), b);
+
+		// Plane 2 - Last Wall
+		horizontal = Vector(c, a);
+		bounds[2].SetFrom(Vector(horizontal.y, -horizontal.x, 0), c);
+
+		// Plane 3: Upper Bound:
+		bounds[3].n = Vector(0, 0, 1);
+		bounds[3].d = maxHeight;
+
+		// Plane 4: Lower Bound
+		bounds[4].n = Vector(0, 0, -1);
+		bounds[4].d = minHeight * -1;
+	}
+
+	void ToString(std::ostringstream& writer) {
+		writer << "{\n\thandle = " << brushHandle << "\n\tbrushDef3 {";
+		for (int i = 0; i < 5; i++) {
 			writer << "\n\t\t";
 			bounds[i].ToString(writer);
 		}

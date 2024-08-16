@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <BinaryReader.h>
 #include <vector>
+#include <array>
 
 template<typename T>
 class WadArray {
@@ -94,6 +95,12 @@ struct VertexFloat {
 
 	VertexFloat(float p_x, float p_y) : x(p_x), y(p_y) {}
 
+	VertexFloat(std::array<float, 2> p) : x(p[0]), y(p[1]) {}
+
+	bool operator==(VertexFloat b) {
+		return x == b.x && y == b.y;
+	}
+
 	static constexpr int32_t size() {
 		return 4;
 	}
@@ -130,6 +137,17 @@ struct SideDef {
 	}
 };
 
+struct SimpleLineDef {
+	VertexFloat v0;
+	VertexFloat v1;
+
+	void swapOrder() {
+		VertexFloat temp = v0;
+		v0 = v1;
+		v1 = temp;
+	}
+};
+
 struct Sector {
 	//int16_t floorHeight;
 	//int16_t ceilingHeight;
@@ -142,7 +160,7 @@ struct Sector {
 	int16_t tagNumber;
 
 	// Stores Sector's linedef info for quick retrieval during floor construction
-	//std::vector<SimpleLineDef> lines;
+	std::vector<SimpleLineDef> lines;
 
 	static constexpr int32_t size() {
 		return 26;
