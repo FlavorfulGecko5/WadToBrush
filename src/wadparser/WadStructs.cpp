@@ -37,13 +37,17 @@ bool LumpTable::ReadFrom(BinaryReader& reader) {
 	return true;
 }
 
-bool WadLevel::ReadFrom(BinaryReader &reader) {
+bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms transforms) {
 	// Read Vertices
 	reader.Goto(lumpVertex->offset);
-	vertices.Reserve(lumpVertex->size / Vertex::size());
-	for (int32_t i = 0; i < vertices.Num(); i++) {
-		reader.ReadLE(vertices[i].x);
-		reader.ReadLE(vertices[i].y);
+	verts.Reserve(lumpVertex->size / VertexFloat::size());
+	int16_t tempX = 0, tempY = 0;
+	for (int32_t i = 0; i < verts.Num(); i++) {
+		reader.ReadLE(tempX);
+		reader.ReadLE(tempY);
+
+		verts[i].x = (tempX + transforms.xShift) / transforms.xyDownscale;
+		verts[i].y = (tempY + transforms.yShift) / transforms.xyDownscale;
 	}
 
 	// Read LineDefs
@@ -76,10 +80,15 @@ bool WadLevel::ReadFrom(BinaryReader &reader) {
 	// Read Sectors
 	reader.Goto(lumpSectors->offset);
 	sectors.Reserve(lumpSectors->size / Sector::size());
+	int16_t tempZ = 0;
+	maxHeight = FLT_TRUE_MIN;
+	minHeight = FLT_MAX;
 	for (int32_t i = 0; i < sectors.Num(); i++) {
 		Sector& s = sectors[i];
-		reader.ReadLE(s.floorHeight);
-		reader.ReadLE(s.ceilingHeight);
+		reader.ReadLE(tempZ);
+		s.floorHeight = tempZ / transforms.zDownscale;
+		reader.ReadLE(tempZ);
+		s.ceilHeight = tempZ / transforms.zDownscale;
 		s.floorTexture.ReadFrom(reader);
 		s.ceilingTexture.ReadFrom(reader);
 		reader.ReadLE(s.lightLevel);
@@ -88,8 +97,8 @@ bool WadLevel::ReadFrom(BinaryReader &reader) {
 
 		if(s.floorHeight < minHeight)
 			minHeight = s.floorHeight;
-		if(s.ceilingHeight > maxHeight)
-			maxHeight = s.ceilingHeight;
+		if(s.ceilHeight > maxHeight)
+			maxHeight = s.ceilHeight;
 	}
 
 
@@ -99,16 +108,15 @@ bool WadLevel::ReadFrom(BinaryReader &reader) {
 void WadLevel::Debug() {
 	using namespace std;
 	cout << lumpHeader->name.Data() << "\n";
-	cout << "Vertex Count: " << vertices.Num() << "\n";
+	cout << "Vertex Count: " << verts.Num() << "\n";
 	cout << "LineDef Count: " << linedefs.Num() << "\n";
 	cout << "SideDef Count: " << sidedefs.Num() << "\n";
 	cout << "Sector Count: " << sectors.Num() << "\n";
 }
 
-bool Wad::ReadFrom(const char* wadpath) {
-	BinaryReader reader(wadpath);
-	if(!reader.InitSuccessful())
-		return false;
+Wad::Wad(const char* wadpath) : reader(wadpath) {
+	if (!reader.InitSuccessful())
+		return;
 
 	lumptable.ReadFrom(reader);
 
@@ -116,7 +124,7 @@ bool Wad::ReadFrom(const char* wadpath) {
 	levels.Reserve(lumptable.levelCount);
 	WadArray<LumpEntry>& lumps = lumptable.lumps;
 	for (int32_t i = 0, lvlNum = 0; i < lumps.Num(); i++) {
-		if(lumps[i].type != LumpType::MAP_HEADER)
+		if (lumps[i].type != LumpType::MAP_HEADER)
 			continue;
 
 		levels[lvlNum].lumpHeader = &lumps[i++];
@@ -128,14 +136,9 @@ bool Wad::ReadFrom(const char* wadpath) {
 		levels[lvlNum].lumpSectors = &lumps[i];
 		lvlNum++;
 	}
+}
 
-	// UNCOMMENT ME AFTER TESTING
-	// Build data structures for levels
-	//for (int32_t i = 0; i < levels.Num(); i++)
-	//	levels[i].ReadFrom(reader);
-
-	levels[0].ReadFrom(reader);
-	//levels[0].Debug();
-
-	return true;
+WadLevel& Wad::DecodeLevel(int index, VertexTransforms transforms) {
+	levels[index].ReadFrom(reader, transforms);
+	return levels[index];
 }

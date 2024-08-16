@@ -71,10 +71,10 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>.\src\wadparser;$(IncludePath)</IncludePath>
+    <IncludePath>.\src\earcut;.\src\wadparser;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>.\src\wadparser;$(IncludePath)</IncludePath>
+    <IncludePath>.\src\earcut;.\src\wadparser;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -140,6 +140,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\BrushBuilder.h" />
+    <ClInclude Include="src\earcut\earcut.hpp" />
     <ClInclude Include="src\wadparser\BinaryReader.h" />
     <ClInclude Include="src\wadparser\WadStructs.h" />
   </ItemGroup>

@@ -7,6 +7,9 @@
     <Filter Include="Wad2Brush">
       <UniqueIdentifier>{fcf13271-d55a-425b-bc24-3ef4042acb1d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="EarCut">
+      <UniqueIdentifier>{0084166b-81a2-42ff-9ff9-e70ea026c30a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\wadparser\BinaryReader.cpp">
@@ -31,6 +34,9 @@
     </ClInclude>
     <ClInclude Include="src\BrushBuilder.h">
       <Filter>Wad2Brush</Filter>
+    </ClInclude>
+    <ClInclude Include="src\earcut\earcut.hpp">
+      <Filter>EarCut</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

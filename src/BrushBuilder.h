@@ -8,8 +8,6 @@ struct Vector {
 	
 	Vector(float p_x, float p_y, float p_z) : x(p_x), y(p_y), z(p_z) {}
 
-	Vector(Vertex v0, Vertex v1) : x(v1.x - v0.x), y(v1.y - v0.y), z(0) {}
-
 	Vector(VertexFloat v0, VertexFloat v1) : x(v1.x - v0.x), y(v1.y - v0.y), z(0) {}
 
 	void Normalize() {

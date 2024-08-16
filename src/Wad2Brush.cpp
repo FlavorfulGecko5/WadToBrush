@@ -3,6 +3,8 @@
 #include <vector>
 #include "BrushBuilder.h"
 #include <iostream>
+#include <earcut.hpp>
+#include <array>
 
 const char* rootMap = 
 "Version 7\n"
@@ -14,68 +16,44 @@ const char* rootMap =
 "		}\n"
 "	}\n";
 
-
-// TODO: MUST FIGURE OUT WHY SOME WALLS DON'T DRAW
-// INVESTIGATING: POINT DELTA
-int main() {
-
-	Wad doomWad;
-	doomWad.ReadFrom("DOOM.WAD");
-
+void BuildLevel(WadLevel& level) {
 	std::ostringstream writer;
 	writer << rootMap;
 	writer.precision(8);
 	writer << std::fixed;
 
-	WadLevel& e1m1 = doomWad.levels[0];
-
-	// TODO: May need to split each linedef into two sets of brushes
-
 	int brushHandle = 0;
-	float minHeight = e1m1.minHeight / 10.0f;
-	float maxHeight = e1m1.maxHeight / 10.0f;
-	for (int32_t i = 0; i < e1m1.linedefs.Num(); i++) {
-		LineDef& line = e1m1.linedefs[i];
-		VertexFloat v0(e1m1.vertices[line.vertexStart]);
-		VertexFloat v1(e1m1.vertices[line.vertexEnd]);
-		v0.x -= 1024;
-		v0.x /= 10;
-		v0.y += 3680;
-		v0.y /= 10;
-		v1.x -= 1024;
-		v1.x /= 10;
-		v1.y += 3680;
-		v1.y /= 10;
+
+	for (int32_t i = 0; i < level.linedefs.Num(); i++) {
+		LineDef& line = level.linedefs[i];
+		VertexFloat v0(level.verts[line.vertexStart]);
+		VertexFloat v1(level.verts[line.vertexEnd]);
 
 		// We assume linedefs can't have a back sidedef without a front
 		if(line.sideFront == NO_SIDEDEF)
 			continue;
 
-		SideDef& frontSide = e1m1.sidedefs[line.sideFront];
-		Sector& frontSector = e1m1.sectors[frontSide.sector];
-		float frontFloor = frontSector.floorHeight / 10.0f;
-		float frontCeiling = frontSector.ceilingHeight / 10.0f;
+		SideDef& frontSide = level.sidedefs[line.sideFront];
+		Sector& frontSector = level.sectors[frontSide.sector];
 
 		if (line.sideBack == NO_SIDEDEF) {
-			WallBrush wall(v0, v1, minHeight, maxHeight, brushHandle++); 
+			WallBrush wall(v0, v1, level.minHeight, level.maxHeight, brushHandle++); 
 			wall.ToString(writer);
 		} else {
-			SideDef& backSide = e1m1.sidedefs[line.sideBack];
-			Sector& backSector = e1m1.sectors[backSide.sector];
-			float backFloor = backSector.floorHeight / 10.0f;
-			float backCeiling = backSector.ceilingHeight / 10.0f;
+			SideDef& backSide = level.sidedefs[line.sideBack];
+			Sector& backSector = level.sectors[backSide.sector];
 
 			// Brush the front sidedefs in relation to the back sector heights
 			if (frontSide.lowerTexture != "-") {
-				WallBrush lower(v0, v1, minHeight, backFloor, brushHandle++);
+				WallBrush lower(v0, v1, level.minHeight, backSector.floorHeight, brushHandle++);
 				lower.ToString(writer);
 			}
 			if (frontSide.middleTexture != "-") {
-				WallBrush middle(v0, v1, backFloor, backCeiling, brushHandle++);
+				WallBrush middle(v0, v1, backSector.floorHeight, backSector.ceilHeight, brushHandle++);
 				middle.ToString(writer);
 			}
 			if (frontSide.upperTexture != "-") {
-				WallBrush upper(v0, v1, backCeiling, maxHeight, brushHandle++);
+				WallBrush upper(v0, v1, backSector.ceilHeight, level.maxHeight, brushHandle++);
 				upper.ToString(writer);
 			}
 
@@ -84,27 +62,52 @@ int main() {
 			// enough to not be considered an issue (yet) - back-textured surfaces mainly
 			// appear to be windows
 			if (backSide.lowerTexture != "-") {
-				WallBrush lower(v0, v1, minHeight, frontFloor, brushHandle++);
+				WallBrush lower(v0, v1, level.minHeight, frontSector.floorHeight, brushHandle++);
 				lower.ToString(writer);
 			}
 			if (backSide.middleTexture != "-") {
-				WallBrush middle(v0, v1, frontFloor, frontCeiling, brushHandle++);
+				WallBrush middle(v0, v1, frontSector.floorHeight, frontSector.ceilHeight, brushHandle++);
 				middle.ToString(writer);
 			}
 			if (backSide.upperTexture != "-") {
-				WallBrush upper(v0, v1, frontCeiling, maxHeight, brushHandle++);
+				WallBrush upper(v0, v1, frontSector.ceilHeight, level.maxHeight, brushHandle++);
 				upper.ToString(writer);
 			}
 		}
+		//SimpleLineDef simple;
+		//simple.v0 = e1m1.vertices[line.vertexStart];
+		//simple.v1 = e1m1.vertices[line.vertexEnd];
+		//frontSector.lines.push_back(simple);
 	}
-	writer << "\n}";
 
+	// STEP TWO: FLOOR AND CEILING BRUSHES....
+
+	using Point = std::array<double, 2>;
+	std::vector<std::vector<Point>> test;
+	mapbox::earcut<int32_t>(test);
+
+
+	//	FINISH UP
+	writer << "\n}";
 	std::string output = writer.str();
+	std::string name;
+	name.append(level.lumpHeader->name.Data());
+	name.append(".map");
 
 	std::ofstream file("e1m1.map", std::ios_base::binary);
 	file.write(output.data(), output.length());
 	file.close();
+}
 
-		
+// TODO: MUST FIGURE OUT WHY SOME WALLS DON'T DRAW
+// INVESTIGATING: POINT DELTA
+int main() {
+
+	Wad doomWad("DOOM.WAD");
+
+	VertexTransforms e1m1Transforms(-1024, 3680, 10.0f, 10.0f);
+	WadLevel& e1m1 = doomWad.DecodeLevel(0, e1m1Transforms);
+	BuildLevel(e1m1);
+
 	return 0;
 }

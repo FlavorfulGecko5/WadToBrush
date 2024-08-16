@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <BinaryReader.h>
+#include <vector>
 
 template<typename T>
 class WadArray {
@@ -83,20 +84,8 @@ struct LumpTable {
 	bool ReadFrom(BinaryReader &reader);
 };
 
-struct Vertex {
-	int16_t x;
-	int16_t y;
-
-	Vertex() : x(0), y(0) {}
-
-	Vertex(int16_t p_x, int16_t p_y) : x(p_x), y(p_y) {}
-
-	static constexpr int32_t size() {
-		return 4;
-	}
-};
-
 // Not part of original doom wad structures. But we need this for precision when converting
+// We will convert from 16-bit integer vertices read from WADs, to float32 vertices
 struct VertexFloat {
 	float x;
 	float y;
@@ -105,7 +94,9 @@ struct VertexFloat {
 
 	VertexFloat(float p_x, float p_y) : x(p_x), y(p_y) {}
 
-	VertexFloat(Vertex copy) : x(copy.x), y(copy.y) {}
+	static constexpr int32_t size() {
+		return 4;
+	}
 };
 
 #define NO_SIDEDEF 0xFFFF
@@ -140,17 +131,34 @@ struct SideDef {
 };
 
 struct Sector {
-	int16_t floorHeight;
-	int16_t ceilingHeight;
+	//int16_t floorHeight;
+	//int16_t ceilingHeight;
+	float floorHeight = 0.0f;
+	float ceilHeight = 0.0f;
 	WadString floorTexture;
 	WadString ceilingTexture;
 	int16_t lightLevel;
 	int16_t specialType;
 	int16_t tagNumber;
 
+	// Stores Sector's linedef info for quick retrieval during floor construction
+	//std::vector<SimpleLineDef> lines;
+
 	static constexpr int32_t size() {
 		return 26;
 	}
+};
+
+struct VertexTransforms {
+	float xShift = 0.0f;
+	float yShift = 0.0f;
+	float xyDownscale = 1.0f;
+	float zDownscale = 1.0f;
+
+	VertexTransforms() {}
+
+	VertexTransforms(int16_t p_xShift, int16_t p_yShift, float p_xyDownscale, float p_zDownscale) 
+		: xShift(p_xShift), yShift(p_yShift), xyDownscale(p_xyDownscale), zDownscale(p_zDownscale) {}
 };
 
 struct WadLevel {
@@ -161,21 +169,26 @@ struct WadLevel {
 	LumpEntry* lumpVertex;
 	LumpEntry* lumpSectors;
 
-	WadArray<Vertex> vertices;
+	//WadArray<Vertex> vertices;
+	WadArray<VertexFloat> verts;
 	WadArray<LineDef> linedefs;
 	WadArray<SideDef> sidedefs;
 	WadArray<Sector> sectors;
 
-	int16_t maxHeight = SHRT_MIN;
-	int16_t minHeight = SHRT_MAX;
+	float maxHeight;
+	float minHeight;
 
-	bool ReadFrom(BinaryReader &reader);
+	bool ReadFrom(BinaryReader &reader, VertexTransforms transforms);
 	void Debug();
 };
 
-struct Wad {
+class Wad {
+	private:
+	BinaryReader reader;
 	LumpTable lumptable;
 	WadArray<WadLevel> levels;
 
-	bool ReadFrom(const char* wadpath);
+	public:
+	Wad(const char* wadpath);
+	WadLevel& DecodeLevel(int index, VertexTransforms transforms);
 };
