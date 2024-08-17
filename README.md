@@ -4,7 +4,7 @@ WadToBrush is a program for converting Classic Doom levels into Doom Eternal map
 *THIS PROGRAM IS IN AN EARLY ALPHA STATE. CURRENTLY, IT CANNOT DO MORE THAN CONVERT MOST (NOT ALL) LEVEL GEOMETRY INTO UNTEXTURED BRUSHES.*
 
 ## Usage
-Usage: `./wadtobrush.exe [WAD] [Map] [Output] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]`
+Usage: `./wadtobrush.exe [WAD] [Map] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]`
 * `[WAD]` - Path to the .WAD file containing your level
 * `[Map]` - Name of the Map Header Lump (i.e. "E1M1" or "MAP01") (Case Sensitive)
 * `[XY Downscale]` - Map geometry will be horizontally downsized by this scale factor. Recommend at least a value of 10.

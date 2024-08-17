@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
 	using namespace std;
 	cout << "WadToBrush by FlavorfulGecko5 - EARLY ALPHA\n\n";
 	if (argc < 3) {
-		cout << "Usage: ./wadtobrush.exe [WAD] [Map] [Output] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]\n\n"
+		cout << "Usage: ./wadtobrush.exe [WAD] [Map] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]\n\n"
 			<< "[WAD] - Path to the .WAD file containing your level\n"
 			<< "[Map] - Name of the Map Header Lump (i.e. \"E1M1\" or \"MAP01\") (Case Sensitive)\n"
 			<< "[XY Downscale] - Map geometry will be horizontally downsized by this scale factor. Recommend at least a value of 10.\n"
