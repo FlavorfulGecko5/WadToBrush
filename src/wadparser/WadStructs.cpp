@@ -138,7 +138,13 @@ Wad::Wad(const char* wadpath) : reader(wadpath) {
 	}
 }
 
-WadLevel& Wad::DecodeLevel(int index, VertexTransforms transforms) {
-	levels[index].ReadFrom(reader, transforms);
-	return levels[index];
+WadLevel& Wad::DecodeLevel(const char* name, VertexTransforms transforms) {
+	for (int32_t i = 0; i < levels.Num(); i++)
+		if (levels[i].lumpHeader->name == name) {
+			levels[i].ReadFrom(reader, transforms);
+			return levels[i];
+		}
+
+	std::cout << "Failed to find level with specified name.\n";
+	throw IndexOOBException(); // TODO: Improve this code path
 }

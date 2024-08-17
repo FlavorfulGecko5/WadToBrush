@@ -88,9 +88,7 @@ void BuildLevel(WadLevel& level) {
 	for (int sectorIndex = 0; sectorIndex < level.sectors.Num(); sectorIndex++) {
 		Sector& sector = level.sectors[sectorIndex];
 		
-		if(sector.lines.size() > 1100) // STARTING SIMPLE, REMOVE ME LATER
-			continue;
-		std::cout << "Sorting Sector " << sectorIndex << " with " << sector.lines.size() << " Linedefs\n";
+		//std::cout << "Sorting Sector " << sectorIndex << " with " << sector.lines.size() << " Linedefs\n";
 
 		// Assemble Data
 		std::vector<SimpleLineDef>& unsorted = sector.lines;
@@ -141,7 +139,7 @@ void BuildLevel(WadLevel& level) {
 		}
 
 		if (forceBreak) {
-			std::cout << "Force Skipping this sector\n";
+			std::cout << "Unable to generate floors/ceilings for Sector " << sectorIndex << "\n";
 			continue;
 		}
 
@@ -187,28 +185,47 @@ void BuildLevel(WadLevel& level) {
 	name.append(level.lumpHeader->name.Data());
 	name.append(".map");
 
+	std::cout << "Creating output file .\\" << name << "\n";
 	std::ofstream file(name, std::ios_base::binary);
 	file.write(output.data(), output.length());
 	file.close();
 }
 
-// TODO: MUST FIGURE OUT WHY SOME WALLS DON'T DRAW
-// INVESTIGATING: POINT DELTA
-int main() {
+int main(int argc, char* argv[]) {
+	using namespace std;
+	cout << "WadToBrush by FlavorfulGecko5 - EARLY ALPHA\n\n";
+	if (argc < 3) {
+		cout << "Usage: ./wadtobrush.exe [WAD] [Map] [Output] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]\n\n"
+			<< "[WAD] - Path to the .WAD file containing your level\n"
+			<< "[Map] - Name of the Map Header Lump (i.e. \"E1M1\" or \"MAP01\") (Case Sensitive)\n"
+			<< "[XY Downscale] - Map geometry will be horizontally downsized by this scale factor. Recommend at least a value of 10.\n"
+			<< "[Z Downscale] - Map geometry will be vertically downsized by this scale factor. Recommend at least a value of 10.\n"
+			<< "[X Shift] - Map geometry will be shifted this many X units. Use if your map is built far away from the origin.\n"
+			<< "[Y Shift] - Map geometry will be shifted this many Y units. Use if your map is built far away from the origin.\n";
+			return 0;
+	}
+	cout << "If you do not see a \"SUCCESS\" message after some time, this program has likely failed.\n";
+	Wad doomWad(argv[1]);
 
-	Wad doomWad("DOOM.WAD");
 
-	VertexTransforms e1m1Transforms(-1024, 3680, 10.0f, 10.0f);
-	WadLevel& e1m1 = doomWad.DecodeLevel(0, e1m1Transforms);
+	VertexTransforms transformations;
+	if(argc > 3) transformations.xyDownscale = atof(argv[3]);
+	if(argc > 4) transformations.zDownscale = atof(argv[4]);
+	if(argc > 5) transformations.xShift = atof(argv[5]);
+	if(argc > 6) transformations.yShift = atof(argv[6]);
+
+	//VertexTransforms e1m1Transforms(-1024, 3680, 10.0f, 10.0f);
+	WadLevel& e1m1 = doomWad.DecodeLevel(argv[2], transformations);
 	BuildLevel(e1m1);
 
-	VertexTransforms e1m2Transforms(0, 0, 10.0f, 10.0f);
-	WadLevel& e1m2 = doomWad.DecodeLevel(1, e1m2Transforms);
-	BuildLevel(e1m2);
+	//VertexTransforms e1m2Transforms(0, 0, 10.0f, 10.0f);
+	//WadLevel& e1m2 = doomWad.DecodeLevel(1, e1m2Transforms);
+	//BuildLevel(e1m2);
 
-	Wad doom2Wad("DOOM2.WAD");
-	WadLevel& map01 = doom2Wad.DecodeLevel(0, e1m2Transforms);
-	BuildLevel(map01);
+	//Wad doom2Wad("DOOM2.WAD");
+	//WadLevel& map01 = doom2Wad.DecodeLevel(0, e1m2Transforms);
+	//BuildLevel(map01);
 
+	cout << "SUCCESS - Please remember that terrain generation is not fully complete, and some floors/ceilings may be missing.";
 	return 0;
 }

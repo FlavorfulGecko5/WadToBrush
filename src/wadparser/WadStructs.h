@@ -208,5 +208,5 @@ class Wad {
 
 	public:
 	Wad(const char* wadpath);
-	WadLevel& DecodeLevel(int index, VertexTransforms transforms);
+	WadLevel& DecodeLevel(const char* name, VertexTransforms transforms);
 };
