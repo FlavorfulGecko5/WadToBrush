@@ -5,15 +5,32 @@ class IndexOOBException : public std::exception {};
 class BinaryReader
 {
 	private:
-	bool ownsBuffer;
+	bool ownsBuffer = false;
 	char* buffer = nullptr;
 	size_t length = 0;
 	size_t pos = 0;
 
 	public:
-	~BinaryReader();
+	void ClearState() {
+		if (ownsBuffer)
+			delete[] buffer;
+		ownsBuffer = false;
+		buffer = nullptr;
+		length = 0;
+		pos = 0;
+	}
+
+	~BinaryReader() {
+		if (ownsBuffer)
+			delete[] buffer;
+	}
+
+	BinaryReader() {
+	}
 	BinaryReader(const std::string& path);
 	BinaryReader(char* p_buffer, size_t p_length);
+	bool SetBuffer(const std::string& path);
+	void SetBuffer(char* p_buffer, size_t p_length);
 	bool InitSuccessful();
 	char* GetBuffer();
 	size_t GetLength();

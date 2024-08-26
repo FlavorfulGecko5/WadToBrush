@@ -2,19 +2,26 @@
 #include <fstream>
 #include <vector>
 
-BinaryReader::~BinaryReader()
+
+BinaryReader::BinaryReader(const std::string& path)
 {
-	if(ownsBuffer)
-		delete[] buffer;
+	SetBuffer(path);
 }
 
-BinaryReader::BinaryReader(const std::string& path) : ownsBuffer(true)
+BinaryReader::BinaryReader(char* p_buffer, size_t p_length)
 {
+	SetBuffer(p_buffer, p_length);
+}
+
+bool BinaryReader::SetBuffer(const std::string& path) {
+	ClearState();
+
+	// Read File
 	std::vector<char> tempVector;
 
 	std::ifstream file(path, std::ios_base::binary);
 	if (file.fail())
-		return;
+		return false;
 
 	while (!file.eof())
 	{
@@ -27,10 +34,17 @@ BinaryReader::BinaryReader(const std::string& path) : ownsBuffer(true)
 	buffer = new char[tempVector.size()];
 	memcpy(buffer, tempVector.data(), tempVector.size());
 	length = tempVector.size();
+	ownsBuffer = true;
+	return true;
 }
 
-BinaryReader::BinaryReader(char* p_buffer, size_t p_length) : ownsBuffer(false),
-	buffer(p_buffer), length(p_length) {}
+void BinaryReader::SetBuffer(char* p_buffer, size_t p_length) {
+	ClearState();
+
+	buffer = p_buffer;
+	length = p_length;
+	ownsBuffer = false;
+}
 
 bool BinaryReader::InitSuccessful()
 {

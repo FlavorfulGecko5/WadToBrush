@@ -193,7 +193,7 @@ void BuildLevel(WadLevel& level) {
 
 int main(int argc, char* argv[]) {
 	using namespace std;
-	cout << "WadToBrush by FlavorfulGecko5 - EARLY ALPHA\n\n";
+	cout << "WadToBrush by FlavorfulGecko5 - EARLY ALPHA HOTFIX #2\n\n";
 	if (argc < 3) {
 		cout << "Usage: ./wadtobrush.exe [WAD] [Map] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]\n\n"
 			<< "[WAD] - Path to the .WAD file containing your level\n"
@@ -205,7 +205,15 @@ int main(int argc, char* argv[]) {
 			return 0;
 	}
 	cout << "If you do not see a \"SUCCESS\" message after some time, this program has likely failed.\n";
-	Wad doomWad(argv[1]);
+	cout << "At this time, only the VANILLA DOOM map format is supported.\n\n";
+
+
+	Wad doomWad;
+	if(!doomWad.ReadFrom(argv[1])) {
+		printf("ERROR READING WAD FILE\n");
+		return 0;
+	}
+	printf("Successfully read WAD from file.\n");
 
 
 	VertexTransforms transformations;
@@ -215,17 +223,16 @@ int main(int argc, char* argv[]) {
 	if(argc > 6) transformations.yShift = atof(argv[6]);
 
 	//VertexTransforms e1m1Transforms(-1024, 3680, 10.0f, 10.0f);
-	WadLevel& e1m1 = doomWad.DecodeLevel(argv[2], transformations);
-	BuildLevel(e1m1);
+	WadLevel* level = doomWad.DecodeLevel(argv[2], transformations);
 
-	//VertexTransforms e1m2Transforms(0, 0, 10.0f, 10.0f);
-	//WadLevel& e1m2 = doomWad.DecodeLevel(1, e1m2Transforms);
-	//BuildLevel(e1m2);
+	if(level == nullptr) {
+		printf("ERROR PARSING LEVEL DATA\n");
+		return 0;
+	}
+	printf("Successfully parsed level data.\n-----\nPerforming Conversion\n");
 
-	//Wad doom2Wad("DOOM2.WAD");
-	//WadLevel& map01 = doom2Wad.DecodeLevel(0, e1m2Transforms);
-	//BuildLevel(map01);
+	BuildLevel(*level);
 
-	cout << "SUCCESS - Please remember that terrain generation is not fully complete, and some floors/ceilings may be missing.";
+	cout << "-----\nSUCCESS - Please remember that terrain generation is not fully complete, and some floors/ceilings may be missing.";
 	return 0;
 }

@@ -207,6 +207,6 @@ class Wad {
 	WadArray<WadLevel> levels;
 
 	public:
-	Wad(const char* wadpath);
-	WadLevel& DecodeLevel(const char* name, VertexTransforms transforms);
+	bool ReadFrom(const char* wadpath);
+	WadLevel* DecodeLevel(const char* name, VertexTransforms transforms);
 };

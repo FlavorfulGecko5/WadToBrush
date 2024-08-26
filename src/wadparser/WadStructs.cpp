@@ -1,5 +1,4 @@
 #include "WadStructs.h"
-#include <iostream>
 
 bool LumpTable::ReadFrom(BinaryReader& reader) {
 	// Clear previous state
@@ -10,8 +9,10 @@ bool LumpTable::ReadFrom(BinaryReader& reader) {
 	const size_t SIZE_MAGIC = 4;
 	char magic[SIZE_MAGIC];
 	reader.ReadBytes(magic, SIZE_MAGIC);
-	if(memcmp(magic, "IWAD", SIZE_MAGIC) != 0)
+	if (memcmp(magic, "IWAD", SIZE_MAGIC) != 0 && memcmp(magic, "PWAD", SIZE_MAGIC) != 0) {
+		printf("File must be an IWAD or a PWAD\n");
 		return false;
+	}
 
 	// Read Table Metadata
 	lumps.ReserveFrom(reader);
@@ -106,19 +107,21 @@ bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms transforms) {
 }
 
 void WadLevel::Debug() {
-	using namespace std;
-	cout << lumpHeader->name.Data() << "\n";
-	cout << "Vertex Count: " << verts.Num() << "\n";
-	cout << "LineDef Count: " << linedefs.Num() << "\n";
-	cout << "SideDef Count: " << sidedefs.Num() << "\n";
-	cout << "Sector Count: " << sectors.Num() << "\n";
+	printf(lumpHeader->name.Data());
+	printf("\nVertex Count: %i\n", verts.Num());
+	printf("LineDef Count: %i\n", linedefs.Num());
+	printf("SideDef Count: %i\n", sidedefs.Num());
+	printf("Sector Count: %i\n", sectors.Num());
 }
 
-Wad::Wad(const char* wadpath) : reader(wadpath) {
-	if (!reader.InitSuccessful())
-		return;
+bool Wad::ReadFrom(const char* wadpath) {
+	if (!reader.SetBuffer(wadpath)) {
+		printf("Failed to read file from disk\n");
+		return false;
+	}
 
-	lumptable.ReadFrom(reader);
+	if(!lumptable.ReadFrom(reader))
+		return false;
 
 	// Initiate Level Array and populate lump references
 	levels.Reserve(lumptable.levelCount);
@@ -136,15 +139,17 @@ Wad::Wad(const char* wadpath) : reader(wadpath) {
 		levels[lvlNum].lumpSectors = &lumps[i];
 		lvlNum++;
 	}
+
+	return true;
 }
 
-WadLevel& Wad::DecodeLevel(const char* name, VertexTransforms transforms) {
+WadLevel* Wad::DecodeLevel(const char* name, VertexTransforms transforms) {
 	for (int32_t i = 0; i < levels.Num(); i++)
 		if (levels[i].lumpHeader->name == name) {
 			levels[i].ReadFrom(reader, transforms);
-			return levels[i];
+			return &levels[i];
 		}
 
-	std::cout << "Failed to find level with specified name.\n";
-	throw IndexOOBException(); // TODO: Improve this code path
+	printf("Failed to find level with specified name.\n");
+	return nullptr;
 }
