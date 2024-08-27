@@ -5,6 +5,7 @@
 
 *.WAD
 *.map
+base/*
 
 # User-specific files
 *.rsuser

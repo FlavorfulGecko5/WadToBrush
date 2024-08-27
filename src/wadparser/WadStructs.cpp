@@ -1,4 +1,8 @@
 #include "WadStructs.h"
+#include <tga.h>
+#include <iostream>
+#include <filesystem>
+#include <fstream>
 
 bool LumpTable::ReadFrom(BinaryReader& reader) {
 	// Clear previous state
@@ -102,7 +106,7 @@ bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms transforms) {
 			maxHeight = s.ceilHeight;
 	}
 
-
+	xyDownscale = transforms.xyDownscale;
 	return true;
 }
 
@@ -152,4 +156,118 @@ WadLevel* Wad::DecodeLevel(const char* name, VertexTransforms transforms) {
 
 	printf("Failed to find level with specified name.\n");
 	return nullptr;
+}
+
+void Wad::ExportTextures() {
+	const char* mat2_start = 
+"declType( material2 ) {\n"
+"	inherit = \"template/pbr\";\n"
+"	edit = {\n"
+"		RenderLayers = {\n"
+"			item[0] = {\n"
+"				parms = {\n"
+"					smoothness = {\n"
+"						filePath = \"art/wadtobrush/black.tga\";\n"
+"					}\n"
+"					specular = {\n"
+"						filePath = \"art/wadtobrush/black.tga\";\n"
+"					}\n"
+"					albedo = {\n"
+"						filePath = \"";
+
+	const char* mat2_end = "\";\n"
+"					}\n"
+"				}\n"
+"			}\n"
+"		}\n"
+"	}\n"
+"}";
+
+	const char* dir_flats = "base/art/wadtobrush/flats/";
+	const char* dir_flats_mat = "base/declTree/material2/art/wadtobrush/flats/";
+
+	struct Color { // This BGRA variable order is what the TGA writer expects
+		uint8_t b = 0; 
+		uint8_t g = 0;
+		uint8_t r = 0;
+		uint8_t a = 0;
+	};
+
+	const int32_t numColors = 256;
+
+	Color palette[numColors];
+
+	const int32_t flatSize = 4096;
+
+	WadArray<LumpEntry>& lumps = lumptable.lumps;
+
+	// Create directories
+	std::filesystem::create_directories(dir_flats);
+	std::filesystem::create_directories(dir_flats_mat);
+	
+	// Read First PlayPal Palette
+	for (int i = 0; i < lumps.Num(); i++) {
+		if (lumps[i].name == "PLAYPAL") {
+			reader.Goto(lumps[i].offset);
+			for (int c = 0; c < numColors; c++) {
+				reader.ReadLE(palette[c].r);
+				reader.ReadLE(palette[c].g);
+				reader.ReadLE(palette[c].b);
+				palette[c].a = 255;
+			}
+			break;
+		}
+	}
+
+	// Generate black texture
+	{
+		const size_t size_black = 256;
+		Color black[size_black];
+
+		for (int i = 0; i < size_black; i++) {
+			black[i].r = 0;
+			black[i].g = 0;
+			black[i].b = 0;
+			black[i].a = 255;
+		}
+		tga_write("base/art/wadtobrush/black.tga", 16, 16, (uint8_t*)black, 4, 4);
+	}
+
+	// Read Flats
+	for (int i = 0; i < lumps.Num(); i++) {
+		if (lumps[i].size != flatSize)
+			continue;
+		reader.Goto(lumps[i].offset);
+
+		Color flat[flatSize];
+		uint8_t colorIndex;
+		for (int c = 0; c < flatSize; c++) {
+			reader.ReadLE(colorIndex);
+			flat[c] = palette[colorIndex];
+		}
+
+		// Write the .tga
+		std::string path = dir_flats;
+		path.append(lumps[i].name.Data());
+		path.append(".tga");
+		tga_write(path.data(), 64, 64, (uint8_t*)flat, 4, 4);
+
+		// Write the material2 decl
+		std::string mat2Path = dir_flats_mat;
+		mat2Path.append(lumps[i].name.Data());
+		mat2Path.append(".decl");
+		
+		std::ofstream mat2Writer(mat2Path, std::ios_base::binary);
+		mat2Writer << mat2_start << "art/wadtobrush/flats/" << lumps[i].name.Data() << ".tga" << mat2_end;
+		mat2Writer.close();
+	}
+
+	/*
+	* Floor/Ceiling Texture plane pair:
+	* - Cannot be rotated
+	* - Cannot be shifted
+	* - One pixel = 1x1 meter
+	* - Might need to rotate 90 degrees clockwise
+	* ((0.015625 0 0) (0 0.015625 0))
+	*/
 }

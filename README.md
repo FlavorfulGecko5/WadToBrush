@@ -20,3 +20,4 @@ WadToBrush is written in C++ using Visual Studio.
 ## Credits
 * FlavorfulGecko5 - Author of WadToBrush
 * Mapbox - Their [Earcut polygon triangulation algorithm](https://github.com/mapbox/earcut.hpp) is used to produce the floor and ceiling brushes.
+* Maluoi - [tga.h](https://gist.github.com/maluoi/ade07688e741ab188841223b8ffeed22)

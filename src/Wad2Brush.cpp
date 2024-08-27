@@ -168,8 +168,8 @@ void BuildLevel(WadLevel& level) {
 				VertexFloat b(mainLine[triangleIndices[i++]]);
 				VertexFloat c(mainLine[triangleIndices[i++]]);
 
-				FloorBrush floor(a, b, c, sector.floorHeight - 1, sector.floorHeight, brushHandle++);
-				FloorBrush ceiling(a, b, c, sector.ceilHeight, sector.ceilHeight + 1, brushHandle++);
+				FloorBrush floor(a, b, c, sector.floorHeight - 1, sector.floorHeight, brushHandle++, false, sector.floorTexture, level.xyDownscale);
+				FloorBrush ceiling(a, b, c, sector.ceilHeight, sector.ceilHeight + 1, brushHandle++, true, sector.ceilingTexture, level.xyDownscale);
 				floor.ToString(writer);
 				ceiling.ToString(writer);
 			}
@@ -191,7 +191,18 @@ void BuildLevel(WadLevel& level) {
 	file.close();
 }
 
+void DebugTextures() {
+	Wad doomwad;
+	doomwad.ReadFrom("DOOM.WAD");
+	doomwad.ExportTextures();
+}
+
 int main(int argc, char* argv[]) {
+	#ifdef _DEBUG
+	//DebugTextures();
+	//return 0;
+	#endif
+
 	using namespace std;
 	cout << "WadToBrush by FlavorfulGecko5 - EARLY ALPHA HOTFIX #2\n\n";
 	if (argc < 3) {

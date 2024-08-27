@@ -51,8 +51,8 @@ struct WallBrush {
 		bounds[1].n.x *= -1;
 		bounds[1].n.y *= -1;
 
-		VertexFloat d0(bounds[1].n.x * 0.0075 + v0.x, bounds[1].n.y * 0.0075 + v0.y);
-		VertexFloat d1(bounds[1].n.x * 0.0075 + v1.x, bounds[1].n.y * 0.0075 + v1.y);
+		VertexFloat d0(bounds[1].n.x * 0.0075f + v0.x, bounds[1].n.y * 0.0075f + v0.y);
+		VertexFloat d1(bounds[1].n.x * 0.0075f + v1.x, bounds[1].n.y * 0.0075f + v1.y);
 		bounds[1].d = bounds[1].n.x * d1.x + bounds[1].n.y * d1.y;
 
 
@@ -87,11 +87,16 @@ struct WallBrush {
 };
 
 struct FloorBrush {
-	Plane bounds[5];
-	int brushHandle;
+	Plane bounds[4];
+	Plane texturedBound;
 
-	FloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float minHeight, float maxHeight, int index)
-		: brushHandle(110000000 + index)
+	int brushHandle;
+	WadString texture;
+	float textureScale;
+
+	FloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float minHeight, float maxHeight, int index,
+		bool isCeiling, WadString p_texture, float p_textureScale)
+		: brushHandle(110000000 + index), texture(p_texture), textureScale(p_textureScale)
 	{
 		// EarCut yields the points in clockwise order.
 		// Hence we must do <0, 0, 1> X horizontal, not the other way around
@@ -110,21 +115,36 @@ struct FloorBrush {
 		horizontal = Vector(c, a);
 		bounds[2].SetFrom(Vector(horizontal.y, -horizontal.x, 0), c);
 
-		// Plane 3: Upper Bound:
-		bounds[3].n = Vector(0, 0, 1);
-		bounds[3].d = maxHeight;
-
-		// Plane 4: Lower Bound
-		bounds[4].n = Vector(0, 0, -1);
-		bounds[4].d = minHeight * -1;
+		if (isCeiling) {
+			bounds[3].n = Vector(0, 0, 1);
+			bounds[3].d = maxHeight;
+			texturedBound.n = Vector(0, 0, -1);
+			texturedBound.d = minHeight * -1;
+		}
+		else {
+			texturedBound.n = Vector(0, 0, 1);
+			texturedBound.d = maxHeight;
+			bounds[3].n = Vector(0, 0, -1);
+			bounds[3].d = minHeight * -1;
+		}
 	}
 
 	void ToString(std::ostringstream& writer) {
 		writer << "{\n\thandle = " << brushHandle << "\n\tbrushDef3 {";
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < 4; i++) {
 			writer << "\n\t\t";
 			bounds[i].ToString(writer);
 		}
+		writer << "\n\t\t";
+
+		// Write the textured plane
+		float scaleMagnitude = 0.015625f * textureScale;
+		// horizontal: (0, -1) Vertical (1, 0) - Ensures proper rotation of textures
+		// For some reason there's a +32 vertical offset, must fix this
+		const float verticalOffset = 0.5f; // (64 / xyDownscale) * xyDownscale * 0.015625f;
+
+		writer << "( " << texturedBound.n.x << ' ' << texturedBound.n.y << ' ' << texturedBound.n.z << ' ' << (texturedBound.d * -1) << " ) ";
+		writer << "( ( 0 " << (scaleMagnitude) << " " << 0 << " ) ( " << (scaleMagnitude* -1) << " 0 " << verticalOffset << " ) ) \"art/wadtobrush/flats/" << texture << "\" 0 0 0";
 		writer << "\n\t}\n}\n";
 	}
 };

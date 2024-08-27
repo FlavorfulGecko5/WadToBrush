@@ -45,6 +45,12 @@ class WadString {
 		data[LENGTH_WADSTRING] = '\0';
 	}
 
+	WadString(const WadString& b) {
+		for(int i = 0; i < LENGTH_WADSTRING; i++)
+			data[i] = b.data[i];
+		data[LENGTH_WADSTRING] = '\0';
+	}
+
 	bool operator==(const char* stringB) {
 		return strcmp(data, stringB) == 0;
 	}
@@ -58,6 +64,10 @@ class WadString {
 	}
 
 	const char* Data() {
+		return data;
+	}
+
+	operator char*() {
 		return data;
 	}
 };
@@ -195,6 +205,7 @@ struct WadLevel {
 
 	float maxHeight;
 	float minHeight;
+	float xyDownscale; // Needed for texture scaling
 
 	bool ReadFrom(BinaryReader &reader, VertexTransforms transforms);
 	void Debug();
@@ -209,4 +220,5 @@ class Wad {
 	public:
 	bool ReadFrom(const char* wadpath);
 	WadLevel* DecodeLevel(const char* name, VertexTransforms transforms);
+	void ExportTextures();
 };
