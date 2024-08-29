@@ -2,19 +2,20 @@
 #include <BinaryReader.h>
 #include <vector>
 #include <array>
+#include <unordered_map>
 
-template<typename T>
+template<typename T, typename N>
 class WadArray {
 	private:
 	T* items = nullptr;
-	int32_t num = 0;
+	N num = 0;
 
 	public:
 	~WadArray() {
 		delete[] items;
 	}
 
-	void Reserve(int32_t p_num) {
+	void Reserve(N p_num) {
 		num = p_num;
 		delete[] items;
 		items = new T[num];
@@ -26,11 +27,11 @@ class WadArray {
 		items = new T[num];
 	}
 
-	T& operator[](const int32_t index) {
+	T& operator[](const N index) {
 		return items[index];
 	}
 
-	int32_t Num() {
+	N Num() {
 		return num;
 	}
 };
@@ -51,11 +52,29 @@ class WadString {
 		data[LENGTH_WADSTRING] = '\0';
 	}
 
-	bool operator==(const char* stringB) {
+	WadString(const char* s) {
+		size_t length = strlen(s);
+		if(length > LENGTH_WADSTRING)
+			length = LENGTH_WADSTRING;
+
+		int i = 0;
+		for(; i < length; i++)
+			data[i] = s[i];
+
+		// Must ensure null-termination to prevent errors
+		for(; i <= LENGTH_WADSTRING; i++)
+			data[i] = '\0';
+	}
+
+	bool operator==(const WadString b) const {
+		return strcmp(data, b.Data()) == 0;
+	}
+
+	bool operator==(const char* stringB) const {
 		return strcmp(data, stringB) == 0;
 	}
 
-	bool operator!=(const char* stringB) {
+	bool operator!=(const char* stringB) const {
 		return strcmp(data, stringB) != 0;
 	}
 
@@ -63,12 +82,26 @@ class WadString {
 		reader.ReadBytes(data, LENGTH_WADSTRING);
 	}
 
-	const char* Data() {
+	const char* Data() const {
 		return data;
 	}
 
 	operator char*() {
 		return data;
+	}
+};
+
+template <>
+struct std::hash<WadString>
+{
+	std::size_t operator()(const WadString& k) const
+	{
+		const char* data = k.Data();
+		size_t hash = 0;
+
+		while (*data != '\0')
+			hash ^= std::hash<char>()(*data++);
+		return hash;
 	}
 };
 
@@ -83,16 +116,6 @@ struct LumpEntry {
 	int32_t size = 0;
 	WadString name;
 	LumpType type = LumpType::UNIDENTIFIED;
-};
-
-struct LumpTable {
-	WadArray<LumpEntry> lumps;
-	int32_t tableOffset = 0;
-
-	// Metadata Variables
-	int32_t levelCount = 0;
-
-	bool ReadFrom(BinaryReader &reader);
 };
 
 // Not part of original doom wad structures. But we need this for precision when converting
@@ -198,10 +221,10 @@ struct WadLevel {
 	LumpEntry* lumpSectors;
 
 	//WadArray<Vertex> vertices;
-	WadArray<VertexFloat> verts;
-	WadArray<LineDef> linedefs;
-	WadArray<SideDef> sidedefs;
-	WadArray<Sector> sectors;
+	WadArray<VertexFloat, int32_t> verts;
+	WadArray<LineDef, int32_t> linedefs;
+	WadArray<SideDef, int32_t> sidedefs;
+	WadArray<Sector, int32_t> sectors;
 
 	float maxHeight;
 	float minHeight;
@@ -211,14 +234,27 @@ struct WadLevel {
 	void Debug();
 };
 
+
+struct Color;
 class Wad {
 	private:
 	BinaryReader reader;
-	LumpTable lumptable;
-	WadArray<WadLevel> levels;
+	int32_t lumptableOffset = 0;
+	WadArray<LumpEntry, int32_t> lumps;
+	WadArray<WadLevel, int32_t> levels;
 
 	public:
 	bool ReadFrom(const char* wadpath);
 	WadLevel* DecodeLevel(const char* name, VertexTransforms transforms);
-	void ExportTextures();
+	void WriteLumpNames();
+
+	/* Texture Exporting */
+
+	private:
+	std::unordered_map<WadString, LumpEntry*> lumpMap;
+	void ExportTextures_Walls(Color* palette, WadString name);
+	void ExportTextures_Flats(Color* palette);
+
+	public:
+	void ExportTextures(bool walls, bool flats);
 };

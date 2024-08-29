@@ -3,44 +3,7 @@
 #include <iostream>
 #include <filesystem>
 #include <fstream>
-
-bool LumpTable::ReadFrom(BinaryReader& reader) {
-	// Clear previous state
-	levelCount = 0;
-	reader.Goto(0);
-
-	// Read WAD Magic - Only IWAD will be readable for now
-	const size_t SIZE_MAGIC = 4;
-	char magic[SIZE_MAGIC];
-	reader.ReadBytes(magic, SIZE_MAGIC);
-	if (memcmp(magic, "IWAD", SIZE_MAGIC) != 0 && memcmp(magic, "PWAD", SIZE_MAGIC) != 0) {
-		printf("File must be an IWAD or a PWAD\n");
-		return false;
-	}
-
-	// Read Table Metadata
-	lumps.ReserveFrom(reader);
-	reader.ReadLE(tableOffset);
-
-	// Read Each Table Entry
-	reader.Goto(tableOffset);
-	for (int32_t i = 0; i < lumps.Num(); i++) {
-		LumpEntry& lump = lumps[i];
-		reader.ReadLE(lump.offset);
-		reader.ReadLE(lump.size);
-		lump.name.ReadFrom(reader);
-	}
-
-	// Identify map header lumps
-	for (int32_t i = 0; i < lumps.Num(); i++) {
-		if (lumps[i].name == "THINGS") {
-			lumps[i - 1].type = LumpType::MAP_HEADER;
-			levelCount++;
-		}
-	}
-
-	return true;
-}
+#include <unordered_map>
 
 bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms transforms) {
 	// Read Vertices
@@ -124,12 +87,41 @@ bool Wad::ReadFrom(const char* wadpath) {
 		return false;
 	}
 
-	if(!lumptable.ReadFrom(reader))
-		return false;
+	// Read WAD Magic
+	{
+		const size_t SIZE_MAGIC = 4;
+		char magic[SIZE_MAGIC];
+		reader.ReadBytes(magic, SIZE_MAGIC);
+		if (memcmp(magic, "IWAD", SIZE_MAGIC) != 0 && memcmp(magic, "PWAD", SIZE_MAGIC) != 0) {
+			printf("File must be an IWAD or a PWAD\n");
+			return false;
+		}
+	}
+
+	// Read Table Metadata
+	lumps.ReserveFrom(reader);
+	reader.ReadLE(lumptableOffset);
+
+	// Read Each Table Entry
+	reader.Goto(lumptableOffset);
+	for (int32_t i = 0; i < lumps.Num(); i++) {
+		LumpEntry& lump = lumps[i];
+		reader.ReadLE(lump.offset);
+		reader.ReadLE(lump.size);
+		lump.name.ReadFrom(reader);
+	}
+
+	// Identify map header lumps
+	int32_t levelCount = 0;
+	for (int32_t i = 0; i < lumps.Num(); i++) {
+		if (lumps[i].name == "THINGS") {
+			lumps[i - 1].type = LumpType::MAP_HEADER;
+			levelCount++;
+		}
+	}
 
 	// Initiate Level Array and populate lump references
-	levels.Reserve(lumptable.levelCount);
-	WadArray<LumpEntry>& lumps = lumptable.lumps;
+	levels.Reserve(levelCount);
 	for (int32_t i = 0, lvlNum = 0; i < lumps.Num(); i++) {
 		if (lumps[i].type != LumpType::MAP_HEADER)
 			continue;
@@ -158,58 +150,82 @@ WadLevel* Wad::DecodeLevel(const char* name, VertexTransforms transforms) {
 	return nullptr;
 }
 
-void Wad::ExportTextures() {
-	const char* mat2_start = 
-"declType( material2 ) {\n"
-"	inherit = \"template/pbr\";\n"
-"	edit = {\n"
-"		RenderLayers = {\n"
-"			item[0] = {\n"
-"				parms = {\n"
-"					smoothness = {\n"
-"						filePath = \"art/wadtobrush/black.tga\";\n"
-"					}\n"
-"					specular = {\n"
-"						filePath = \"art/wadtobrush/black.tga\";\n"
-"					}\n"
-"					albedo = {\n"
-"						filePath = \"";
+void Wad::WriteLumpNames() {
+	std::ofstream output("lumpnames.txt", std::ios_base::binary);
 
-	const char* mat2_end = "\";\n"
-"					}\n"
-"				}\n"
-"			}\n"
-"		}\n"
-"	}\n"
-"}";
+	for(int i = 0; i < lumps.Num(); i++)
+		output << lumps[i].name << "\n";
+}
 
-	const char* dir_flats = "base/art/wadtobrush/flats/";
-	const char* dir_flats_mat = "base/declTree/material2/art/wadtobrush/flats/";
 
-	struct Color { // This BGRA variable order is what the TGA writer expects
-		uint8_t b = 0; 
-		uint8_t g = 0;
-		uint8_t r = 0;
-		uint8_t a = 0;
-	};
+// ====================
+// TEXTURE EXPORTING
+// ====================
 
-	const int32_t numColors = 256;
+void WriteMaterial2(const std::string& filepath, WadString texture) {
+	const char* mat2_start =
+		"declType( material2 ) {\n"
+		"	inherit = \"template/pbr\";\n"
+		"	edit = {\n"
+		"		RenderLayers = {\n"
+		"			item[0] = {\n"
+		"				parms = {\n"
+		"					smoothness = {\n"
+		"						filePath = \"art/wadtobrush/black.tga\";\n"
+		"					}\n"
+		"					specular = {\n"
+		"						filePath = \"art/wadtobrush/black.tga\";\n"
+		"					}\n"
+		"					albedo = {\n"
+		"						filePath = \"";
 
-	Color palette[numColors];
+	const char* mat2_end = 
+		"\";\n"
+		"					}\n"
+		"				}\n"
+		"			}\n"
+		"		}\n"
+		"	}\n"
+		"}";
 
-	const int32_t flatSize = 4096;
+	std::ofstream mat2Writer(filepath, std::ios_base::binary);
+	mat2Writer << mat2_start << "art/wadtobrush/flats/" << texture << ".tga" << mat2_end;
+	mat2Writer.close();
+}
 
-	WadArray<LumpEntry>& lumps = lumptable.lumps;
+struct Color { // This BGRA variable order is what the TGA writer expects
+	uint8_t b = 0;
+	uint8_t g = 0;
+	uint8_t r = 0;
+	uint8_t a = 0;
+};
+
+const char* dir_flats = "base/art/wadtobrush/flats/";
+const char* dir_flats_mat = "base/declTree/material2/art/wadtobrush/flats/";
+const char* dir_walls = "base/art/wadtobrush/walls/";
+const char* dir_walls_mat = "base/declTree/material2/art/wadtobrush/walls/";
+
+void Wad::ExportTextures(bool walls, bool flats) {
+	const int32_t paletteSize = 256;
+	Color palette[paletteSize];
 
 	// Create directories
 	std::filesystem::create_directories(dir_flats);
 	std::filesystem::create_directories(dir_flats_mat);
-	
+	std::filesystem::create_directories(dir_walls);
+	std::filesystem::create_directories(dir_walls_mat);
+
+	// Build Lump Map
+	lumpMap.reserve(lumps.Num());
+	for(int i = 0; i < lumps.Num(); i++)
+		lumpMap[lumps[i].name] = &lumps[i];
+
 	// Read First PlayPal Palette
+	reader.Goto(lumpMap.at("PLAYPAL")->offset);
 	for (int i = 0; i < lumps.Num(); i++) {
 		if (lumps[i].name == "PLAYPAL") {
 			reader.Goto(lumps[i].offset);
-			for (int c = 0; c < numColors; c++) {
+			for (int c = 0; c < paletteSize; c++) {
 				reader.ReadLE(palette[c].r);
 				reader.ReadLE(palette[c].g);
 				reader.ReadLE(palette[c].b);
@@ -233,13 +249,182 @@ void Wad::ExportTextures() {
 		tga_write("base/art/wadtobrush/black.tga", 16, 16, (uint8_t*)black, 4, 4);
 	}
 
-	// Read Flats
+	struct PatchColumn {
+		uint32_t offset; // Relative to beginning of patch header
+		uint8_t topDelta;
+		uint8_t length;
+		uint8_t unused;
+		//WadArray<uint8_t, uint8_t> colors;
+		uint8_t unused2;
+	};
+
+	struct PatchHeader {
+		WadString name;
+		uint16_t width;
+		uint16_t height;
+		int16_t leftOffset;
+		int16_t topOffset;
+		WadArray<PatchColumn, uint16_t> columns;
+
+		Color* pixels = nullptr;
+
+		~PatchHeader() {
+			delete[] pixels;
+		}
+	};
+
+	if(walls) {
+		// Read Patch Names
+		WadArray<PatchHeader, int32_t> patches;
+		reader.Goto(lumpMap.at("PNAMES")->offset);
+		patches.ReserveFrom(reader);
+		for(int i = 0; i < patches.Num(); i++)
+			patches[i].name.ReadFrom(reader);
+
+		printf("%i Patches Found\n", patches.Num());
+		for (int i = 0; i < patches.Num(); i++) {
+			//if(i == 1) break;
+			if (i == 162) continue; // w94_1 is cursed - force WadStrings all uppercase?
+			
+			PatchHeader& p = patches[i];
+			size_t startPosition = lumpMap.at(p.name)->offset;
+			reader.Goto(startPosition);
+
+			reader.ReadLE(p.width);
+			reader.ReadLE(p.height);
+			reader.ReadLE(p.leftOffset);
+			reader.ReadLE(p.topOffset);
+			
+			p.columns.Reserve(p.width); // Width dictates number of columns
+
+			printf("%i %s (%i, %i) (%i, %i)\n", i, p.name, p.width, p.height, p.leftOffset, p.topOffset);
+
+			// Read Column Offsets
+			for(int k = 0; k < p.columns.Num(); k++)
+				reader.ReadLE(p.columns[k].offset);
+
+			// Initialize Color Data
+			// index = width * row + col
+			p.pixels = new Color[p.width * p.height];
+			uint8_t row = 0, col = 0;
+
+			for (int k = 0; k < p.columns.Num(); k++) {
+				printf("Reading Column %i\n", k);
+				PatchColumn& c = p.columns[k];
+				reader.Goto(startPosition + c.offset);
+
+				bool foundTerminal = false;
+				while (!foundTerminal) {
+					reader.ReadLE(c.topDelta);
+					if (c.topDelta == (uint8_t)0xFF) {
+						printf("0xFF - Shifting Column\n");
+						foundTerminal = true;
+						col++;
+						continue;
+					}
+					else row = c.topDelta; // Default initializer sets alpha of skipped pixels to 0
+
+					uint8_t index;
+					reader.ReadLE(c.length);
+					reader.ReadLE(c.unused);
+
+					printf("%i pixels in patch\n", c.length);
+					for (uint8_t z = 0; z < c.length; z++) {
+						reader.ReadLE(index);
+						p.pixels[p.width * row++ + col] = palette[index];
+					}
+					reader.ReadLE(c.unused2);
+				}
+			}
+			std::string filepath = "base/art/wadtobrush/walls/";
+			filepath.append(p.name);
+			filepath.append(".tga");
+			tga_write(filepath.data(), p.width, p.height, (uint8_t*)p.pixels, 4, 4);
+		}
+		//ExportTextures_Walls(palette, "TEXTURE1");
+		//ExportTextures_Walls(palette, "TEXTURE2");
+	}
+
+	if(flats)
+		ExportTextures_Flats(palette);
+}
+
+struct MapPatch {
+	int16_t originX;
+	int16_t originY;
+	int16_t patchIndex;
+	int16_t stepDir;  //Unused
+	int16_t colormap; //Unused
+};
+
+struct MapTexture {
+	int32_t offset; // Relative to start of texture lump
+	WadString name;
+	int32_t masked;  // Unknown use
+	int16_t width;
+	int16_t height;
+	int32_t columnDir; // Unused
+	WadArray<MapPatch, int16_t> patches;
+};
+
+void Wad::ExportTextures_Walls(Color* palette, WadString name) {
+	if(lumpMap.find(name) == lumpMap.end())
+		return;
+	printf("Reading %s\n", name.Data());
+
+	WadArray<MapTexture, int32_t> textures;
+
+	// Read the lump header containing the relative offsets
+	size_t startPosition = lumpMap.at(name)->offset;
+	reader.Goto(startPosition);
+	textures.ReserveFrom(reader);
+	for(int i = 0; i < textures.Num(); i++)
+		reader.ReadLE(textures[i].offset);
+
+	printf("%i Map Textures Found\n", textures.Num());
+	// Read each MapTexture
+	for (int i = 0; i < textures.Num(); i++) {
+		MapTexture& t = textures[i];
+		reader.Goto(startPosition + t.offset);
+		
+		t.name.ReadFrom(reader);
+		reader.ReadLE(t.masked);
+		reader.ReadLE(t.width);
+		reader.ReadLE(t.height);
+		reader.ReadLE(t.columnDir);
+		
+
+		t.patches.ReserveFrom(reader);
+		printf("%s (%i x %i) %i", t.name, t.width, t.height, t.patches.Num());
+		for (int16_t k = 0; k < t.patches.Num(); k++) {
+			MapPatch& mp = t.patches[k];
+			reader.ReadLE(mp.originX);
+			reader.ReadLE(mp.originY);
+			reader.ReadLE(mp.patchIndex);
+			reader.ReadLE(mp.stepDir);
+			reader.ReadLE(mp.colormap);
+
+			printf(" (%i, %i)", mp.originX, mp.originY);
+		}
+		printf("\n");
+		
+	}
+
+	
+
+}
+
+void Wad::ExportTextures_Flats(Color* palette) {
+	const int32_t flatSize = 4096;
+	Color flat[flatSize];
+
 	for (int i = 0; i < lumps.Num(); i++) {
+		// This will cause ANY 4096 byte lump to
+		// get interpreted as a texture, not just genuine flat textures
 		if (lumps[i].size != flatSize)
 			continue;
 		reader.Goto(lumps[i].offset);
 
-		Color flat[flatSize];
 		uint8_t colorIndex;
 		for (int c = 0; c < flatSize; c++) {
 			reader.ReadLE(colorIndex);
@@ -256,18 +441,7 @@ void Wad::ExportTextures() {
 		std::string mat2Path = dir_flats_mat;
 		mat2Path.append(lumps[i].name.Data());
 		mat2Path.append(".decl");
-		
-		std::ofstream mat2Writer(mat2Path, std::ios_base::binary);
-		mat2Writer << mat2_start << "art/wadtobrush/flats/" << lumps[i].name.Data() << ".tga" << mat2_end;
-		mat2Writer.close();
-	}
 
-	/*
-	* Floor/Ceiling Texture plane pair:
-	* - Cannot be rotated
-	* - Cannot be shifted
-	* - One pixel = 1x1 meter
-	* - Might need to rotate 90 degrees clockwise
-	* ((0.015625 0 0) (0 0.015625 0))
-	*/
+		WriteMaterial2(mat2Path, lumps[i].name);
+	}
 }

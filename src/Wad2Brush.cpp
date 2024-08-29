@@ -194,13 +194,14 @@ void BuildLevel(WadLevel& level) {
 void DebugTextures() {
 	Wad doomwad;
 	doomwad.ReadFrom("DOOM.WAD");
-	doomwad.ExportTextures();
+	//doomwad.WriteLumpNames();
+	doomwad.ExportTextures(true, false);
 }
 
 int main(int argc, char* argv[]) {
 	#ifdef _DEBUG
-	//DebugTextures();
-	//return 0;
+	DebugTextures();
+	return 0;
 	#endif
 
 	using namespace std;

@@ -141,6 +141,7 @@ struct FloorBrush {
 		float scaleMagnitude = 0.015625f * textureScale;
 		// horizontal: (0, -1) Vertical (1, 0) - Ensures proper rotation of textures
 		// For some reason there's a +32 vertical offset, must fix this
+		// UPDATE: NEED TO ACCOUNT FOR THE VERTEXTRANSFORM SHIFTS BY SHIFTING EVERY BRUSH'S TEXTURE GRID
 		const float verticalOffset = 0.5f; // (64 / xyDownscale) * xyDownscale * 0.015625f;
 
 		writer << "( " << texturedBound.n.x << ' ' << texturedBound.n.y << ' ' << texturedBound.n.z << ' ' << (texturedBound.d * -1) << " ) ";
