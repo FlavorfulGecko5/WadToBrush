@@ -2,6 +2,9 @@
 #include <fstream>
 #include <vector>
 
+BinaryReader::BinaryReader(const BinaryReader& b) {
+	SetBuffer(b.buffer, b.length);
+}
 
 BinaryReader::BinaryReader(const std::string& path)
 {

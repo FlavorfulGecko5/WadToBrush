@@ -200,6 +200,16 @@ struct Color { // This BGRA variable order is what the TGA writer expects
 	uint8_t a = 0;
 };
 
+struct PatchImage {
+	uint16_t width = 0;
+	uint16_t height = 0;
+	Color* pixels = nullptr;
+
+	~PatchImage() {
+		delete[] pixels;
+	}
+};
+
 const char* dir_flats = "base/art/wadtobrush/flats/";
 const char* dir_flats_mat = "base/declTree/material2/art/wadtobrush/flats/";
 const char* dir_walls = "base/art/wadtobrush/walls/";
@@ -250,99 +260,92 @@ void Wad::ExportTextures(bool walls, bool flats) {
 	}
 
 	struct PatchColumn {
-		uint32_t offset; // Relative to beginning of patch header
-		uint8_t topDelta;
-		uint8_t length;
-		uint8_t unused;
+		uint32_t offset = 0; // Relative to beginning of patch header
+		uint8_t topDelta = 0;
+		uint8_t length = 0;
+		uint8_t unused = 0;
 		//WadArray<uint8_t, uint8_t> colors;
-		uint8_t unused2;
+		uint8_t unused2 = 0;
 	};
 
 	struct PatchHeader {
 		WadString name;
-		uint16_t width;
-		uint16_t height;
-		int16_t leftOffset;
-		int16_t topOffset;
-		WadArray<PatchColumn, uint16_t> columns;
-
-		Color* pixels = nullptr;
-
-		~PatchHeader() {
-			delete[] pixels;
-		}
+		uint16_t width = 0;
+		uint16_t height = 0;
+		int16_t leftOffset = 0; // Used to create standalone image file - NOT to offset patch in texture
+		int16_t topOffset = 0;
+		//WadArray<PatchColumn, uint16_t> columns;
 	};
 
 	if(walls) {
-		// Read Patch Names
-		WadArray<PatchHeader, int32_t> patches;
-		reader.Goto(lumpMap.at("PNAMES")->offset);
-		patches.ReserveFrom(reader);
-		for(int i = 0; i < patches.Num(); i++)
-			patches[i].name.ReadFrom(reader);
+		PatchImage* images = nullptr;
+		int32_t imageCount = 0;
 
-		printf("%i Patches Found\n", patches.Num());
-		for (int i = 0; i < patches.Num(); i++) {
-			//if(i == 1) break;
-			if (i == 162) continue; // w94_1 is cursed - force WadStrings all uppercase?
-			
-			PatchHeader& p = patches[i];
-			size_t startPosition = lumpMap.at(p.name)->offset;
+		// Allocate Color array
+		BinaryReader columnReader(reader);
+		BinaryReader pnameReader(reader);
+		pnameReader.Goto(lumpMap.at("PNAMES")->offset);
+		pnameReader.ReadLE(imageCount);
+		images = new PatchImage[imageCount];
+
+		//std::ofstream patchmeta("patchmeta.txt", std::ios_base::binary);
+		printf("%i Patches Found\n", imageCount);
+		//patchmeta << imageCount << " Patches Found\n";
+		for (int i = 0; i < imageCount; i++) {
+			PatchHeader patch;
+			patch.name.ReadFrom(pnameReader);
+
+			size_t startPosition = lumpMap.at(patch.name)->offset;
 			reader.Goto(startPosition);
+			reader.ReadLE(patch.width);
+			reader.ReadLE(patch.height);
+			reader.ReadLE(patch.leftOffset);
+			reader.ReadLE(patch.topOffset);
 
-			reader.ReadLE(p.width);
-			reader.ReadLE(p.height);
-			reader.ReadLE(p.leftOffset);
-			reader.ReadLE(p.topOffset);
-			
-			p.columns.Reserve(p.width); // Width dictates number of columns
+			//printf("%i %s (%i, %i)\n", i, patch.name.Data(), patch.width, patch.height);
+			//patchmeta << i << " " << patch.name.Data() << " (" << patch.width << ", " << patch.height 
+			//	<< " ) (" << patch.leftOffset << " " << patch.topOffset << ")\n";
 
-			printf("%i %s (%i, %i) (%i, %i)\n", i, p.name, p.width, p.height, p.leftOffset, p.topOffset);
-
-			// Read Column Offsets
-			for(int k = 0; k < p.columns.Num(); k++)
-				reader.ReadLE(p.columns[k].offset);
-
-			// Initialize Color Data
-			// index = width * row + col
-			p.pixels = new Color[p.width * p.height];
+			Color* pixels = new Color[patch.width * patch.height];
+			images[i].pixels = pixels;
+			images[i].width = patch.width;
+			images[i].height = patch.height;
 			uint8_t row = 0, col = 0;
 
-			for (int k = 0; k < p.columns.Num(); k++) {
-				printf("Reading Column %i\n", k);
-				PatchColumn& c = p.columns[k];
-				reader.Goto(startPosition + c.offset);
+			for (int k = 0; k < patch.width; k++) { // Width dictates column count
+				PatchColumn column;
+				reader.ReadLE(column.offset);
+				columnReader.Goto(startPosition + column.offset);
 
-				bool foundTerminal = false;
-				while (!foundTerminal) {
-					reader.ReadLE(c.topDelta);
-					if (c.topDelta == (uint8_t)0xFF) {
-						printf("0xFF - Shifting Column\n");
-						foundTerminal = true;
+				while (true) {
+					columnReader.ReadLE(column.topDelta);
+					if (column.topDelta == 0xFF) {
 						col++;
-						continue;
+						break;
 					}
-					else row = c.topDelta; // Default initializer sets alpha of skipped pixels to 0
+					else row = column.topDelta;
 
+					columnReader.ReadLE(column.length);
+					columnReader.ReadLE(column.unused);
 					uint8_t index;
-					reader.ReadLE(c.length);
-					reader.ReadLE(c.unused);
 
-					printf("%i pixels in patch\n", c.length);
-					for (uint8_t z = 0; z < c.length; z++) {
-						reader.ReadLE(index);
-						p.pixels[p.width * row++ + col] = palette[index];
+					for (int z = 0; z < column.length; z++) {
+						columnReader.ReadLE(index);
+						pixels[patch.width * row++ + col] = palette[index];
 					}
-					reader.ReadLE(c.unused2);
+					columnReader.ReadLE(column.unused2);
 				}
 			}
-			std::string filepath = "base/art/wadtobrush/walls/";
-			filepath.append(p.name);
-			filepath.append(".tga");
-			tga_write(filepath.data(), p.width, p.height, (uint8_t*)p.pixels, 4, 4);
+			//std::string filepath = "base/art/wadtobrush/walls/";
+			//filepath.append(patch.name);
+			//filepath.append(".tga");
+			//tga_write(filepath.data(), patch.width, patch.height, (uint8_t*)pixels, 4, 4);
 		}
-		//ExportTextures_Walls(palette, "TEXTURE1");
-		//ExportTextures_Walls(palette, "TEXTURE2");
+		//patchmeta.close();
+		ExportTextures_Walls(images, "TEXTURE1");
+		ExportTextures_Walls(images, "TEXTURE2");
+		delete[] images;
+
 	}
 
 	if(flats)
@@ -364,53 +367,97 @@ struct MapTexture {
 	int16_t width;
 	int16_t height;
 	int32_t columnDir; // Unused
-	WadArray<MapPatch, int16_t> patches;
+	int16_t patchCount;
+	//WadArray<MapPatch, int16_t> patches;
 };
 
-void Wad::ExportTextures_Walls(Color* palette, WadString name) {
+void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 	if(lumpMap.find(name) == lumpMap.end())
 		return;
 	printf("Reading %s\n", name.Data());
 
-	WadArray<MapTexture, int32_t> textures;
+	MapTexture texture;
+	MapPatch patchDef;
+	BinaryReader patchReader(reader);
+	int32_t wallCount = 0;
 
-	// Read the lump header containing the relative offsets
 	size_t startPosition = lumpMap.at(name)->offset;
 	reader.Goto(startPosition);
-	textures.ReserveFrom(reader);
-	for(int i = 0; i < textures.Num(); i++)
-		reader.ReadLE(textures[i].offset);
+	reader.ReadLE(wallCount);
 
-	printf("%i Map Textures Found\n", textures.Num());
-	// Read each MapTexture
-	for (int i = 0; i < textures.Num(); i++) {
-		MapTexture& t = textures[i];
-		reader.Goto(startPosition + t.offset);
-		
-		t.name.ReadFrom(reader);
-		reader.ReadLE(t.masked);
-		reader.ReadLE(t.width);
-		reader.ReadLE(t.height);
-		reader.ReadLE(t.columnDir);
-		
+	printf("%i Map Textures Found\n", wallCount);
 
-		t.patches.ReserveFrom(reader);
-		printf("%s (%i x %i) %i", t.name, t.width, t.height, t.patches.Num());
-		for (int16_t k = 0; k < t.patches.Num(); k++) {
-			MapPatch& mp = t.patches[k];
-			reader.ReadLE(mp.originX);
-			reader.ReadLE(mp.originY);
-			reader.ReadLE(mp.patchIndex);
-			reader.ReadLE(mp.stepDir);
-			reader.ReadLE(mp.colormap);
+	for (int32_t i = 0; i < wallCount; i++) {
+		reader.ReadLE(texture.offset);
+		patchReader.Goto(startPosition + texture.offset);
 
-			printf(" (%i, %i)", mp.originX, mp.originY);
+		texture.name.ReadFrom(patchReader);
+		patchReader.ReadLE(texture.masked);
+		patchReader.ReadLE(texture.width);
+		patchReader.ReadLE(texture.height);
+		patchReader.ReadLE(texture.columnDir);
+
+		patchReader.ReadLE(texture.patchCount);
+		printf("%i %s (%i x %i) %i", i, texture.name, texture.width, texture.height, texture.patchCount);
+
+		Color* pixels = new Color[texture.width * texture.height];
+		for (int16_t k = 0; k < texture.patchCount; k++) {
+			patchReader.ReadLE(patchDef.originX);
+			patchReader.ReadLE(patchDef.originY);
+			patchReader.ReadLE(patchDef.patchIndex);
+			patchReader.ReadLE(patchDef.stepDir);
+			patchReader.ReadLE(patchDef.colormap);
+
+			printf(" (%i %i, %i)", patchDef.patchIndex, patchDef.originX, patchDef.originY);
+
+			// IMPORTANT: PATCHES MAY BE BIGGER THAN THE FINAL WALL TEXTURES (running off the screen)
+			// IMPORTANT: PATCHES WITH OPACITY 0 PIXELS CAN GET OVERLAYED OVER OTHER TEXTURES
+			//	SOLUTION: Initialize wall texture with all opacity 0 pixels. Only copy a pixel onto the texture
+			// if it's opacity isn't 0
+
+			Color* patchImage = patches[patchDef.patchIndex].pixels;
+			int patchWidth = patches[patchDef.patchIndex].width;
+			int patchHeight = patches[patchDef.patchIndex].height;
+
+
+			// Define bounds on the canvas
+			int rowMin = patchDef.originY, colMin = patchDef.originX;
+
+			// Classic doom just...ignores negative vertical offsets
+			// Most textures don't have these...but it's noticeable in the ones that do
+			if(rowMin < 0)
+				rowMin = 0;
+
+			int rowMax = rowMin + patchHeight, colMax = colMin + patchWidth;
+			
+			if(rowMax > texture.height)
+				rowMax = texture.height;
+			if(colMax > texture.width)
+				colMax = texture.width;
+
+			for (int currentRow = rowMin; currentRow < rowMax; currentRow++) {
+				//if(currentRow < 0) // We won't be drawing any out of bounds rows
+				//	continue;
+				// Ensure we're reading correct row of patch image (if patch runs off texture)
+				int patchImageIndex = patchWidth * (currentRow - rowMin); 
+				int index = currentRow * texture.width;
+				for (int currentCol = colMin; currentCol < colMax; currentCol++) {
+					// Current column may be out of bounds while future columns are not.
+					// We must ensure the patch index continues to get incremented no matter what
+					if(currentCol > -1 && patchImage[patchImageIndex].a > 0)
+						pixels[index + currentCol] = patchImage[patchImageIndex];
+					patchImageIndex++;
+				}
+			}
+
 		}
+		std::string filepath = "base/art/wadtobrush/walls/";
+		filepath.append(texture.name);
+		filepath.append(".tga");
+		tga_write(filepath.data(), texture.width, texture.height, (uint8_t*)pixels, 4, 4);
 		printf("\n");
-		
+		delete[] pixels;
 	}
-
-	
 
 }
 

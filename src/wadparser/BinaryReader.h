@@ -27,6 +27,7 @@ class BinaryReader
 
 	BinaryReader() {
 	}
+	BinaryReader(const BinaryReader& b);
 	BinaryReader(const std::string& path);
 	BinaryReader(char* p_buffer, size_t p_length);
 	bool SetBuffer(const std::string& path);

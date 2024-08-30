@@ -57,9 +57,19 @@ class WadString {
 		if(length > LENGTH_WADSTRING)
 			length = LENGTH_WADSTRING;
 
+		/*
+		* We force the content of WadStrings to be uppercase
+		* for case-insensitive WadString comparisons
+		* 
+		* Implemented specifically because of Patch lump
+		* W94_1 being written as w94_1 in PNAMES
+		*/
 		int i = 0;
-		for(; i < length; i++)
+		for (; i < length; i++) {
 			data[i] = s[i];
+			if(data[i] >= 'a' && data[i] <= 'z')
+				data[i] -= 32;
+		}
 
 		// Must ensure null-termination to prevent errors
 		for(; i <= LENGTH_WADSTRING; i++)
@@ -80,6 +90,10 @@ class WadString {
 
 	void ReadFrom(BinaryReader& reader) {
 		reader.ReadBytes(data, LENGTH_WADSTRING);
+
+		for(int i = 0; i < LENGTH_WADSTRING; i++)
+			if (data[i] >= 'a' && data[i] <= 'z')
+				data[i] -= 32;
 	}
 
 	const char* Data() const {
@@ -236,6 +250,7 @@ struct WadLevel {
 
 
 struct Color;
+struct PatchImage;
 class Wad {
 	private:
 	BinaryReader reader;
@@ -252,7 +267,7 @@ class Wad {
 
 	private:
 	std::unordered_map<WadString, LumpEntry*> lumpMap;
-	void ExportTextures_Walls(Color* palette, WadString name);
+	void ExportTextures_Walls(PatchImage* patches, WadString name);
 	void ExportTextures_Flats(Color* palette);
 
 	public:
