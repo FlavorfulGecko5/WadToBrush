@@ -5,7 +5,9 @@
 #include <fstream>
 #include <unordered_map>
 
-bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms transforms) {
+bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms p_transforms) {
+	transforms = p_transforms;
+
 	// Read Vertices
 	reader.Goto(lumpVertex->offset);
 	verts.Reserve(lumpVertex->size / VertexFloat::size());
@@ -68,8 +70,6 @@ bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms transforms) {
 		if(s.ceilHeight > maxHeight)
 			maxHeight = s.ceilHeight;
 	}
-
-	xyDownscale = transforms.xyDownscale;
 	return true;
 }
 
@@ -162,7 +162,15 @@ void Wad::WriteLumpNames() {
 // TEXTURE EXPORTING
 // ====================
 
-void WriteMaterial2(const std::string& filepath, WadString texture) {
+const char* dir_critical =    "base/art/wadtobrush/";
+const char* dir_flats =		  "base/art/wadtobrush/flats/";
+const char* dir_flats_mat =   "base/declTree/material2/art/wadtobrush/flats/";
+const char* dir_walls =       "base/art/wadtobrush/walls/";
+const char* dir_walls_mat =   "base/declTree/material2/art/wadtobrush/walls/";
+const char* dir_patches =     "base/art/wadtobrush/patches/";
+const char* dir_patches_mat = "base/declTree/material2/art/wadtobrush/patches/";
+
+void WriteMaterial2(const char* subFolder, WadString name) {
 	const char* mat2_start =
 		"declType( material2 ) {\n"
 		"	inherit = \"template/pbr\";\n"
@@ -188,8 +196,13 @@ void WriteMaterial2(const std::string& filepath, WadString texture) {
 		"	}\n"
 		"}";
 
-	std::ofstream mat2Writer(filepath, std::ios_base::binary);
-	mat2Writer << mat2_start << "art/wadtobrush/flats/" << texture << ".tga" << mat2_end;
+	std::string matPath = "base/declTree/material2/art/wadtobrush/";
+	matPath.append(subFolder);
+	matPath.append(name);
+	matPath.append(".decl");
+
+	std::ofstream mat2Writer(matPath.data(), std::ios_base::binary);
+	mat2Writer << mat2_start << "art/wadtobrush/" << subFolder << name << ".tga" << mat2_end;
 	mat2Writer.close();
 }
 
@@ -210,12 +223,7 @@ struct PatchImage {
 	}
 };
 
-const char* dir_flats = "base/art/wadtobrush/flats/";
-const char* dir_flats_mat = "base/declTree/material2/art/wadtobrush/flats/";
-const char* dir_walls = "base/art/wadtobrush/walls/";
-const char* dir_walls_mat = "base/declTree/material2/art/wadtobrush/walls/";
-
-void Wad::ExportTextures(bool walls, bool flats) {
+void Wad::ExportTextures(bool exportWalls, bool exportFlats, bool exportPatches) {
 	const int32_t paletteSize = 256;
 	Color palette[paletteSize];
 
@@ -224,6 +232,8 @@ void Wad::ExportTextures(bool walls, bool flats) {
 	std::filesystem::create_directories(dir_flats_mat);
 	std::filesystem::create_directories(dir_walls);
 	std::filesystem::create_directories(dir_walls_mat);
+	std::filesystem::create_directories(dir_patches);
+	std::filesystem::create_directories(dir_patches_mat);
 
 	// Build Lump Map
 	lumpMap.reserve(lumps.Num());
@@ -277,7 +287,7 @@ void Wad::ExportTextures(bool walls, bool flats) {
 		//WadArray<PatchColumn, uint16_t> columns;
 	};
 
-	if(walls) {
+	if(exportWalls || exportPatches) {
 		PatchImage* images = nullptr;
 		int32_t imageCount = 0;
 
@@ -336,19 +346,26 @@ void Wad::ExportTextures(bool walls, bool flats) {
 					columnReader.ReadLE(column.unused2);
 				}
 			}
-			//std::string filepath = "base/art/wadtobrush/walls/";
-			//filepath.append(patch.name);
-			//filepath.append(".tga");
-			//tga_write(filepath.data(), patch.width, patch.height, (uint8_t*)pixels, 4, 4);
+			if (exportPatches) {
+				std::string filepath = dir_patches;
+				filepath.append(patch.name);
+				filepath.append(".tga");
+				tga_write(filepath.data(), patch.width, patch.height, (uint8_t*)pixels, 4, 4);
+
+				WriteMaterial2("patches/", patch.name);
+			}
+
 		}
 		//patchmeta.close();
-		ExportTextures_Walls(images, "TEXTURE1");
-		ExportTextures_Walls(images, "TEXTURE2");
+		if (exportWalls) {
+			ExportTextures_Walls(images, "TEXTURE1");
+			ExportTextures_Walls(images, "TEXTURE2");
+		}
 		delete[] images;
 
 	}
 
-	if(flats)
+	if(exportFlats)
 		ExportTextures_Flats(palette);
 }
 
@@ -398,7 +415,7 @@ void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 		patchReader.ReadLE(texture.columnDir);
 
 		patchReader.ReadLE(texture.patchCount);
-		printf("%i %s (%i x %i) %i", i, texture.name, texture.width, texture.height, texture.patchCount);
+		//printf("%i %s (%i x %i) %i", i, texture.name, texture.width, texture.height, texture.patchCount);
 
 		Color* pixels = new Color[texture.width * texture.height];
 		for (int16_t k = 0; k < texture.patchCount; k++) {
@@ -408,7 +425,7 @@ void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 			patchReader.ReadLE(patchDef.stepDir);
 			patchReader.ReadLE(patchDef.colormap);
 
-			printf(" (%i %i, %i)", patchDef.patchIndex, patchDef.originX, patchDef.originY);
+			//printf(" (%i %i, %i)", patchDef.patchIndex, patchDef.originX, patchDef.originY);
 
 			// IMPORTANT: PATCHES MAY BE BIGGER THAN THE FINAL WALL TEXTURES (running off the screen)
 			// IMPORTANT: PATCHES WITH OPACITY 0 PIXELS CAN GET OVERLAYED OVER OTHER TEXTURES
@@ -451,11 +468,14 @@ void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 			}
 
 		}
-		std::string filepath = "base/art/wadtobrush/walls/";
+		std::string filepath = dir_walls;
 		filepath.append(texture.name);
 		filepath.append(".tga");
 		tga_write(filepath.data(), texture.width, texture.height, (uint8_t*)pixels, 4, 4);
-		printf("\n");
+
+		WriteMaterial2("walls/", texture.name);
+
+		//printf("\n");
 		delete[] pixels;
 	}
 
@@ -485,10 +505,6 @@ void Wad::ExportTextures_Flats(Color* palette) {
 		tga_write(path.data(), 64, 64, (uint8_t*)flat, 4, 4);
 
 		// Write the material2 decl
-		std::string mat2Path = dir_flats_mat;
-		mat2Path.append(lumps[i].name.Data());
-		mat2Path.append(".decl");
-
-		WriteMaterial2(mat2Path, lumps[i].name);
+		WriteMaterial2("flats/", lumps[i].name);
 	}
 }

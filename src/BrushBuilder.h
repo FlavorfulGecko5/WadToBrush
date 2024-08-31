@@ -1,5 +1,4 @@
 #include <WadStructs.h>
-#include <sstream>
 
 struct Vector {
 	float x, y, z;
@@ -29,17 +28,12 @@ struct Plane {
 		n.Normalize();
 		d = n.x * point.x + n.y * point.y;
 	}
-
-	void ToString(std::ostringstream& writer) {
-		writer << "( " << n.x << ' ' << n.y << ' ' << n.z << ' ' << (d * -1) << " ) " << "( ( 1 0 0 ) ( 0 1 0 ) ) \"art/tile/common/shadow_caster\" 0 0 0";
-	}
 };
 
 struct WallBrush {
 	Plane bounds[6];
-	int brushHandle;
 
-	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, int lineIndex) : brushHandle(100000000 + lineIndex)  
+	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight)
 	{
 		Vector horizontal(v0, v1);
 
@@ -75,28 +69,16 @@ struct WallBrush {
 		bounds[5].d = minHeight * -1;
 
 	}
-
-	void ToString(std::ostringstream& writer) {
-		writer << "{\n\thandle = " << brushHandle << "\n\tbrushDef3 {";
-		for (int i = 0; i < 6; i++) {
-			writer << "\n\t\t";
-			bounds[i].ToString(writer);
-		}
-		writer << "\n\t}\n}\n";
-	}
 };
 
 struct FloorBrush {
 	Plane bounds[4];
 	Plane texturedBound;
 
-	int brushHandle;
 	WadString texture;
-	float textureScale;
 
-	FloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float minHeight, float maxHeight, int index,
-		bool isCeiling, WadString p_texture, float p_textureScale)
-		: brushHandle(110000000 + index), texture(p_texture), textureScale(p_textureScale)
+	FloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float height,
+		bool isCeiling, WadString p_texture) : texture(p_texture)
 	{
 		// EarCut yields the points in clockwise order.
 		// Hence we must do <0, 0, 1> X horizontal, not the other way around
@@ -117,35 +99,15 @@ struct FloorBrush {
 
 		if (isCeiling) {
 			bounds[3].n = Vector(0, 0, 1);
-			bounds[3].d = maxHeight;
+			bounds[3].d = height + 1;
 			texturedBound.n = Vector(0, 0, -1);
-			texturedBound.d = minHeight * -1;
+			texturedBound.d = height * -1;
 		}
 		else {
 			texturedBound.n = Vector(0, 0, 1);
-			texturedBound.d = maxHeight;
+			texturedBound.d = height;
 			bounds[3].n = Vector(0, 0, -1);
-			bounds[3].d = minHeight * -1;
+			bounds[3].d = (height - 1) * -1;
 		}
-	}
-
-	void ToString(std::ostringstream& writer) {
-		writer << "{\n\thandle = " << brushHandle << "\n\tbrushDef3 {";
-		for (int i = 0; i < 4; i++) {
-			writer << "\n\t\t";
-			bounds[i].ToString(writer);
-		}
-		writer << "\n\t\t";
-
-		// Write the textured plane
-		float scaleMagnitude = 0.015625f * textureScale;
-		// horizontal: (0, -1) Vertical (1, 0) - Ensures proper rotation of textures
-		// For some reason there's a +32 vertical offset, must fix this
-		// UPDATE: NEED TO ACCOUNT FOR THE VERTEXTRANSFORM SHIFTS BY SHIFTING EVERY BRUSH'S TEXTURE GRID
-		const float verticalOffset = 0.5f; // (64 / xyDownscale) * xyDownscale * 0.015625f;
-
-		writer << "( " << texturedBound.n.x << ' ' << texturedBound.n.y << ' ' << texturedBound.n.z << ' ' << (texturedBound.d * -1) << " ) ";
-		writer << "( ( 0 " << (scaleMagnitude) << " " << 0 << " ) ( " << (scaleMagnitude* -1) << " 0 " << verticalOffset << " ) ) \"art/wadtobrush/flats/" << texture << "\" 0 0 0";
-		writer << "\n\t}\n}\n";
 	}
 };

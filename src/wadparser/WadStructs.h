@@ -242,9 +242,10 @@ struct WadLevel {
 
 	float maxHeight;
 	float minHeight;
-	float xyDownscale; // Needed for texture scaling
 
-	bool ReadFrom(BinaryReader &reader, VertexTransforms transforms);
+	VertexTransforms transforms;
+
+	bool ReadFrom(BinaryReader &reader, VertexTransforms p_transforms);
 	void Debug();
 };
 
@@ -271,5 +272,5 @@ class Wad {
 	void ExportTextures_Flats(Color* palette);
 
 	public:
-	void ExportTextures(bool walls, bool flats);
+	void ExportTextures(bool exportWalls, bool exportFlats, bool exportPatches);
 };

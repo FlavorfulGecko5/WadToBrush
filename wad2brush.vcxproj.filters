@@ -24,6 +24,9 @@
     <ClCompile Include="src\BrushBuilder.cpp">
       <Filter>Wad2Brush</Filter>
     </ClCompile>
+    <ClCompile Include="src\MapWriter.cpp">
+      <Filter>Wad2Brush</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\wadparser\BinaryReader.h">
@@ -40,6 +43,9 @@
     </ClInclude>
     <ClInclude Include="src\externals\tga.h">
       <Filter>Externals</Filter>
+    </ClInclude>
+    <ClInclude Include="src\MapWriter.h">
+      <Filter>Wad2Brush</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

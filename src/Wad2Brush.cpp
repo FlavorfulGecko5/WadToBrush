@@ -1,29 +1,14 @@
-
-#include <fstream>
 #include <vector>
-#include "BrushBuilder.h"
+#include "MapWriter.h"
 #include <iostream>
 #include <earcut.hpp>
 #include <array>
 
-const char* rootMap = 
-"Version 7\n"
-"HierarchyVersion 1\n"
-"entity{\n"
-"	entityDef world {\n"
-"		inherit = \"worldspawn\";\n"
-"		edit = {\n"
-"		}\n"
-"	}\n";
 
 void BuildLevel(WadLevel& level) {
-	std::ostringstream writer;
-	writer << rootMap;
-	writer.precision(8);
-	writer << std::fixed;
+	MapWriter writer(level);
 
-	int brushHandle = 0;
-
+	// STEP 1: WALL BRUSHES
 	for (int32_t i = 0; i < level.linedefs.Num(); i++) {
 		LineDef& line = level.linedefs[i];
 		VertexFloat v0(level.verts[line.vertexStart]);
@@ -43,8 +28,8 @@ void BuildLevel(WadLevel& level) {
 		frontSector.lines.push_back(simple);
 
 		if (line.sideBack == NO_SIDEDEF) {
-			WallBrush wall(v0, v1, level.minHeight, level.maxHeight, brushHandle++); 
-			wall.ToString(writer);
+			WallBrush wall(v0, v1, level.minHeight, level.maxHeight);
+			writer.WriteBrush(wall);
 		} else {
 			SideDef& backSide = level.sidedefs[line.sideBack];
 			Sector& backSector = level.sectors[backSide.sector];
@@ -52,16 +37,16 @@ void BuildLevel(WadLevel& level) {
 
 			// Brush the front sidedefs in relation to the back sector heights
 			if (frontSide.lowerTexture != "-") {
-				WallBrush lower(v0, v1, level.minHeight, backSector.floorHeight, brushHandle++);
-				lower.ToString(writer);
+				WallBrush lower(v0, v1, level.minHeight, backSector.floorHeight);
+				writer.WriteBrush(lower);
 			}
 			if (frontSide.middleTexture != "-") {
-				WallBrush middle(v0, v1, backSector.floorHeight, backSector.ceilHeight, brushHandle++);
-				middle.ToString(writer);
+				WallBrush middle(v0, v1, backSector.floorHeight, backSector.ceilHeight);
+				writer.WriteBrush(middle);
 			}
 			if (frontSide.upperTexture != "-") {
-				WallBrush upper(v0, v1, backSector.ceilHeight, level.maxHeight, brushHandle++);
-				upper.ToString(writer);
+				WallBrush upper(v0, v1, backSector.ceilHeight, level.maxHeight);
+				writer.WriteBrush(upper);
 			}
 
 			// Brush the back sidedefs in relation to the front sector heights
@@ -69,16 +54,16 @@ void BuildLevel(WadLevel& level) {
 			// enough to not be considered an issue (yet) - back-textured surfaces mainly
 			// appear to be windows
 			if (backSide.lowerTexture != "-") {
-				WallBrush lower(v0, v1, level.minHeight, frontSector.floorHeight, brushHandle++);
-				lower.ToString(writer);
+				WallBrush lower(v0, v1, level.minHeight, frontSector.floorHeight);
+				writer.WriteBrush(lower);
 			}
 			if (backSide.middleTexture != "-") {
-				WallBrush middle(v0, v1, frontSector.floorHeight, frontSector.ceilHeight, brushHandle++);
-				middle.ToString(writer);
+				WallBrush middle(v0, v1, frontSector.floorHeight, frontSector.ceilHeight);
+				writer.WriteBrush(middle);
 			}
 			if (backSide.upperTexture != "-") {
-				WallBrush upper(v0, v1, frontSector.ceilHeight, level.maxHeight, brushHandle++);
-				upper.ToString(writer);
+				WallBrush upper(v0, v1, frontSector.ceilHeight, level.maxHeight);
+				writer.WriteBrush(upper);
 			}
 		}
 	}
@@ -168,40 +153,30 @@ void BuildLevel(WadLevel& level) {
 				VertexFloat b(mainLine[triangleIndices[i++]]);
 				VertexFloat c(mainLine[triangleIndices[i++]]);
 
-				FloorBrush floor(a, b, c, sector.floorHeight - 1, sector.floorHeight, brushHandle++, false, sector.floorTexture, level.xyDownscale);
-				FloorBrush ceiling(a, b, c, sector.ceilHeight, sector.ceilHeight + 1, brushHandle++, true, sector.ceilingTexture, level.xyDownscale);
-				floor.ToString(writer);
-				ceiling.ToString(writer);
+				FloorBrush floor(a, b, c, sector.floorHeight, false, sector.floorTexture);
+				FloorBrush ceiling(a, b, c, sector.ceilHeight, true, sector.ceilingTexture);
+				writer.WriteBrush(floor);
+				writer.WriteBrush(ceiling);
 			}
 		}
 
 	}
 
-
-	//	FINISH UP
-	writer << "\n}";
-	std::string output = writer.str();
-	std::string name;
-	name.append(level.lumpHeader->name.Data());
-	name.append(".map");
-
-	std::cout << "Creating output file .\\" << name << "\n";
-	std::ofstream file(name, std::ios_base::binary);
-	file.write(output.data(), output.length());
-	file.close();
+	// FINISH UP
+	writer.SaveFile(level.lumpHeader->name);
 }
 
 void DebugTextures() {
 	Wad doomwad;
 	doomwad.ReadFrom("DOOM.WAD");
 	//doomwad.WriteLumpNames();
-	doomwad.ExportTextures(true, false);
+	doomwad.ExportTextures(true, true, true);
 }
 
 int main(int argc, char* argv[]) {
 	#ifdef _DEBUG
-	DebugTextures();
-	return 0;
+	//DebugTextures();
+	//return 0;
 	#endif
 
 	using namespace std;

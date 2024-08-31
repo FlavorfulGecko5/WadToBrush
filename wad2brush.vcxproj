@@ -136,6 +136,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\BrushBuilder.cpp" />
+    <ClCompile Include="src\MapWriter.cpp" />
     <ClCompile Include="src\Wad2Brush.cpp" />
     <ClCompile Include="src\wadparser\BinaryReader.cpp" />
     <ClCompile Include="src\wadparser\WadStructs.cpp" />
@@ -144,6 +145,7 @@
     <ClInclude Include="src\BrushBuilder.h" />
     <ClInclude Include="src\externals\earcut.hpp" />
     <ClInclude Include="src\externals\tga.h" />
+    <ClInclude Include="src\MapWriter.h" />
     <ClInclude Include="src\wadparser\BinaryReader.h" />
     <ClInclude Include="src\wadparser\WadStructs.h" />
   </ItemGroup>
