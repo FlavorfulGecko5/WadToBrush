@@ -17,6 +17,10 @@ struct Vector {
 			z /= magnitude;
 		}
 	}
+
+	float Magnitude() {
+		return sqrtf(x * x + y * y + z * z);
+	}
 };
 
 struct Plane {
@@ -32,8 +36,15 @@ struct Plane {
 
 struct WallBrush {
 	Plane bounds[6];
+	WadString texture;
 
-	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight)
+	// Need these for texture mapping
+	VertexFloat p0;
+	VertexFloat p1;
+	float offsetX;
+
+	WallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, WadString p_texture,
+		float p_offsetX) : texture(p_texture), p0(v0), p1(v1), offsetX(p_offsetX)
 	{
 		Vector horizontal(v0, v1);
 
@@ -99,7 +110,7 @@ struct FloorBrush {
 
 		if (isCeiling) {
 			bounds[3].n = Vector(0, 0, 1);
-			bounds[3].d = height + 1;
+			bounds[3].d = height + 0.0075f;;
 			texturedBound.n = Vector(0, 0, -1);
 			texturedBound.d = height * -1;
 		}
@@ -107,7 +118,7 @@ struct FloorBrush {
 			texturedBound.n = Vector(0, 0, 1);
 			texturedBound.d = height;
 			bounds[3].n = Vector(0, 0, -1);
-			bounds[3].d = (height - 1) * -1;
+			bounds[3].d = (height - 0.0075f) * -1;
 		}
 	}
 };

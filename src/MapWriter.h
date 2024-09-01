@@ -5,6 +5,7 @@ class MapWriter {
 	private:
 	std::ostringstream writer;
 	VertexTransforms tforms;
+	std::unordered_map<WadString, DimFloat>& wallRatios;
 
 
 	// Must increment with every written brush

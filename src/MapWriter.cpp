@@ -11,8 +11,7 @@ const char* rootMap =
 "		}\n"
 "	}\n";
 
-MapWriter::MapWriter(WadLevel& level) : tforms(level.transforms) {
-	printf("%f %f %f %f", tforms.xyDownscale, tforms.zDownscale, tforms.xShift, tforms.yShift);
+MapWriter::MapWriter(WadLevel& level) : tforms(level.transforms), wallRatios(level.metersPerPixel) {
 	writer.precision(8);
 	writer << std::fixed << rootMap;
 }
@@ -38,14 +37,44 @@ void MapWriter::WritePlane(const Plane p) {
 }
 
 void MapWriter::WriteBrush(const WallBrush& b) {
-	writer << "{\n\thandle = " << brushHandle++ << "\n\tbrushDef3 {";
-	for (int i = 0; i < 6; i++) {
+	writer << "{\n\thandle = " << brushHandle++ << "\n\tbrushDef3 {";\
+	
+	// Write untextured bounds
+	for (int i = 1; i < 6; i++) {
 		writer << "\n\t\t";
 		WritePlane(b.bounds[i]);
+	}
+	
+
+	// Write front wall
+	// TODO: CONSIDER OFFSETS
+	writer << "\n\t\t";
+	if (b.texture == "-")
+		WritePlane(b.bounds[0]);
+	else {
+		DimFloat ratios = wallRatios[b.texture];
+		float xScale = ratios.width * tforms.xyDownscale;
+		float yScale = ratios.height * tforms.zDownscale;
+
+
+		/*
+		* We must shift the texture grid such that the texture patch begins on the 
+		* left side of the wall. To do this accurately, we calculate the magnitude
+		* of the projection of the shift vector onto the horizontal wall vector
+		* 
+		* Currently, this accounts for all vertextransforms and sidedef X shift values, but doesn't yet account for linedef flags
+		*/
+		Vector wallVector(b.p0, b.p1);
+		Vector shiftVector(VertexFloat(0.0f, 0.0f), b.p0);
+		float projection = ((wallVector.x * shiftVector.x + wallVector.y * shiftVector.y) / wallVector.Magnitude() - b.offsetX) * xScale * -1;
+
+		writer << "( " << b.bounds[0].n.x << ' ' << b.bounds[0].n.y << ' ' << b.bounds[0].n.z << ' ' << (b.bounds[0].d * -1) << " ) ";
+		writer << "( ( " << xScale << " 0 " << projection << " ) ( 0 " << yScale << " " << 0 << " ) ) \"art/wadtobrush/walls/" << b.texture.Data() << "\" 0 0 0";
 	}
 	writer << "\n\t}\n}\n";
 }
 
+// TODO MUST FIX: CEILING BRUSHES ARE NOT ROTATED PROPERLY
 void MapWriter::WriteBrush(const FloorBrush& b) {
 	writer << "{\n\thandle = " << brushHandle++ << "\n\tbrushDef3 {";
 	for (int i = 0; i < 4; i++) {

@@ -5,8 +5,20 @@
 #include <fstream>
 #include <unordered_map>
 
-bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms p_transforms) {
+bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms p_transforms, 
+	std::unordered_map<WadString, Dimension>& wallDimensions) {
+	
+	// Set transform data
 	transforms = p_transforms;
+	metersPerPixel.clear();
+	metersPerPixel.reserve(wallDimensions.size());
+	for (auto pair : wallDimensions) {
+		DimFloat dim;
+		dim.width = 1.0f / pair.second.width;
+		dim.height = 1.0f / pair.second.height;
+
+		metersPerPixel[pair.first] = dim;
+	}
 
 	// Read Vertices
 	reader.Goto(lumpVertex->offset);
@@ -37,10 +49,16 @@ bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms p_transforms) {
 	// Read SideDefs
 	reader.Goto(lumpSides->offset);
 	sidedefs.Reserve(lumpSides->size / SideDef::size());
+	int16_t tempOffset =0;
 	for (int32_t i = 0; i < sidedefs.Num(); i++) {
 		SideDef& s = sidedefs[i];
-		reader.ReadLE(s.texXOffset);
-		reader.ReadLE(s.texYOffset);
+
+		// Read and adjust texture offsets
+		reader.ReadLE(tempOffset);
+		s.offsetX = tempOffset / transforms.xyDownscale;
+		reader.ReadLE(tempOffset);
+		s.offsetY = tempOffset / transforms.zDownscale;
+
 		s.upperTexture.ReadFrom(reader);
 		s.lowerTexture.ReadFrom(reader);
 		s.middleTexture.ReadFrom(reader);
@@ -136,13 +154,24 @@ bool Wad::ReadFrom(const char* wadpath) {
 		lvlNum++;
 	}
 
+	// Build Lump Map
+	lumpMap.clear();
+	lumpMap.reserve(lumps.Num());
+	for (int i = 0; i < lumps.Num(); i++)
+		lumpMap[lumps[i].name] = &lumps[i];
+
+	// Build texture dimension map
+	textureSizes.clear();
+	GetTextureDimensions("TEXTURE1");
+	GetTextureDimensions("TEXTURE2");
+
 	return true;
 }
 
 WadLevel* Wad::DecodeLevel(const char* name, VertexTransforms transforms) {
 	for (int32_t i = 0; i < levels.Num(); i++)
 		if (levels[i].lumpHeader->name == name) {
-			levels[i].ReadFrom(reader, transforms);
+			levels[i].ReadFrom(reader, transforms, textureSizes);
 			return &levels[i];
 		}
 
@@ -161,6 +190,34 @@ void Wad::WriteLumpNames() {
 // ====================
 // TEXTURE EXPORTING
 // ====================
+
+void Wad::GetTextureDimensions(WadString name) {
+	if(lumpMap.find(name) == lumpMap.end())
+		return;
+
+	size_t startPosition = lumpMap.at(name)->offset;
+	int32_t textureCount = 0;
+	BinaryReader offsetReader(reader);
+	offsetReader.Goto(startPosition);
+	offsetReader.ReadLE(textureCount);
+
+	for (int32_t i = 0; i < textureCount; i++) {
+		int32_t offset;
+		offsetReader.ReadLE(offset);
+
+		reader.Goto(startPosition + offset);
+		WadString name;
+		Dimension dim;
+
+		name.ReadFrom(reader);
+		reader.GoRight(4); // skip masked bool integer
+		reader.ReadLE(dim.width);
+		reader.ReadLE(dim.height);
+		textureSizes[name] = dim;
+
+		//printf("%s (%i, %i)\n", name, dim.width, dim.height);
+	}
+}
 
 const char* dir_critical =    "base/art/wadtobrush/";
 const char* dir_flats =		  "base/art/wadtobrush/flats/";
@@ -234,11 +291,6 @@ void Wad::ExportTextures(bool exportWalls, bool exportFlats, bool exportPatches)
 	std::filesystem::create_directories(dir_walls_mat);
 	std::filesystem::create_directories(dir_patches);
 	std::filesystem::create_directories(dir_patches_mat);
-
-	// Build Lump Map
-	lumpMap.reserve(lumps.Num());
-	for(int i = 0; i < lumps.Num(); i++)
-		lumpMap[lumps[i].name] = &lumps[i];
 
 	// Read First PlayPal Palette
 	reader.Goto(lumpMap.at("PLAYPAL")->offset);

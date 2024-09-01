@@ -172,8 +172,10 @@ struct LineDef {
 };
 
 struct SideDef {
-	int16_t texXOffset;
-	int16_t texYOffset;
+	float offsetX;
+	float offsetY;
+	//int16_t texXOffset;
+	//int16_t texYOffset;
 	WadString upperTexture;
 	WadString middleTexture;
 	WadString lowerTexture;
@@ -226,6 +228,17 @@ struct VertexTransforms {
 		: xShift(p_xShift), yShift(p_yShift), xyDownscale(p_xyDownscale), zDownscale(p_zDownscale) {}
 };
 
+struct Dimension {
+	int16_t width = 1;
+	int16_t height = 1;
+};
+
+
+struct DimFloat {
+	float width = 1.0f;
+	float height = 1.0f;
+};
+
 struct WadLevel {
 	LumpEntry* lumpHeader;
 	LumpEntry* lumpThings;
@@ -244,8 +257,10 @@ struct WadLevel {
 	float minHeight;
 
 	VertexTransforms transforms;
+	std::unordered_map<WadString, DimFloat> metersPerPixel;
 
-	bool ReadFrom(BinaryReader &reader, VertexTransforms p_transforms);
+	bool ReadFrom(BinaryReader &reader, VertexTransforms p_transforms,
+		std::unordered_map<WadString, Dimension>& wallDimensions);
 	void Debug();
 };
 
@@ -258,6 +273,7 @@ class Wad {
 	int32_t lumptableOffset = 0;
 	WadArray<LumpEntry, int32_t> lumps;
 	WadArray<WadLevel, int32_t> levels;
+	std::unordered_map<WadString, LumpEntry*> lumpMap;
 
 	public:
 	bool ReadFrom(const char* wadpath);
@@ -267,7 +283,10 @@ class Wad {
 	/* Texture Exporting */
 
 	private:
-	std::unordered_map<WadString, LumpEntry*> lumpMap;
+	std::unordered_map<WadString, Dimension> textureSizes;
+	void GetTextureDimensions(WadString name);
+
+	
 	void ExportTextures_Walls(PatchImage* patches, WadString name);
 	void ExportTextures_Flats(Color* palette);
 
