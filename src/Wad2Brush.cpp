@@ -28,8 +28,7 @@ void BuildLevel(WadLevel& level) {
 		frontSector.lines.push_back(simple);
 
 		if (line.sideBack == NO_SIDEDEF) {
-			WallBrush wall(v0, v1, level.minHeight, level.maxHeight, frontSide.middleTexture, frontSide.offsetX);
-			writer.WriteBrush(wall);
+			writer.WriteWallBrush(v0, v1, level.minHeight, level.maxHeight, frontSide.middleTexture, frontSide.offsetX);
 		} else {
 			SideDef& backSide = level.sidedefs[line.sideBack];
 			Sector& backSector = level.sectors[backSide.sector];
@@ -37,16 +36,13 @@ void BuildLevel(WadLevel& level) {
 
 			// Brush the front sidedefs in relation to the back sector heights
 			if (frontSide.lowerTexture != "-") {
-				WallBrush lower(v0, v1, level.minHeight, backSector.floorHeight, frontSide.lowerTexture, frontSide.offsetX);
-				writer.WriteBrush(lower);
+				writer.WriteWallBrush(v0, v1, level.minHeight, backSector.floorHeight, frontSide.lowerTexture, frontSide.offsetX);
 			}
 			if (frontSide.middleTexture != "-") {
-				WallBrush middle(v0, v1, backSector.floorHeight, backSector.ceilHeight, frontSide.middleTexture, frontSide.offsetX);
-				writer.WriteBrush(middle);
+				writer.WriteWallBrush(v0, v1, backSector.floorHeight, backSector.ceilHeight, frontSide.middleTexture, frontSide.offsetX);
 			}
 			if (frontSide.upperTexture != "-") {
-				WallBrush upper(v0, v1, backSector.ceilHeight, level.maxHeight, frontSide.upperTexture, frontSide.offsetX);
-				writer.WriteBrush(upper);
+				writer.WriteWallBrush(v0, v1, backSector.ceilHeight, level.maxHeight, frontSide.upperTexture, frontSide.offsetX);
 			}
 
 			// Brush the back sidedefs in relation to the front sector heights
@@ -57,18 +53,15 @@ void BuildLevel(WadLevel& level) {
 			// and begins at correct position
 			if (backSide.lowerTexture != "-") {
 				//printf("Rear Back Texture %i \n", i);
-				WallBrush lower(v1, v0, level.minHeight, frontSector.floorHeight, backSide.lowerTexture, backSide.offsetX);
-				writer.WriteBrush(lower);
+				writer.WriteWallBrush(v1, v0, level.minHeight, frontSector.floorHeight, backSide.lowerTexture, backSide.offsetX);
 			}
 			if (backSide.middleTexture != "-") {
 				//printf("Rear Middle Texture %i\n", i);
-				WallBrush middle(v1, v0, frontSector.floorHeight, frontSector.ceilHeight, backSide.middleTexture, backSide.offsetX);
-				writer.WriteBrush(middle);
+				writer.WriteWallBrush(v1, v0, frontSector.floorHeight, frontSector.ceilHeight, backSide.middleTexture, backSide.offsetX);
 			}
 			if (backSide.upperTexture != "-") {
 				//printf("Rear upper Texture %i\n", i);
-				WallBrush upper(v1, v0, frontSector.ceilHeight, level.maxHeight, backSide.upperTexture, backSide.offsetX);
-				writer.WriteBrush(upper);
+				writer.WriteWallBrush(v1, v0, frontSector.ceilHeight, level.maxHeight, backSide.upperTexture, backSide.offsetX);
 			}
 		}
 	}
@@ -158,10 +151,8 @@ void BuildLevel(WadLevel& level) {
 				VertexFloat b(mainLine[triangleIndices[i++]]);
 				VertexFloat c(mainLine[triangleIndices[i++]]);
 
-				FloorBrush floor(a, b, c, sector.floorHeight, false, sector.floorTexture);
-				FloorBrush ceiling(a, b, c, sector.ceilHeight, true, sector.ceilingTexture);
-				writer.WriteBrush(floor);
-				writer.WriteBrush(ceiling);
+				writer.WriteFloorBrush(a, b, c, sector.floorHeight, false, sector.floorTexture);
+				writer.WriteFloorBrush(a, b, c, sector.ceilHeight, true, sector.ceilingTexture);
 			}
 		}
 

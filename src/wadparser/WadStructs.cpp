@@ -227,31 +227,91 @@ const char* dir_walls_mat =   "base/declTree/material2/art/wadtobrush/walls/";
 const char* dir_patches =     "base/art/wadtobrush/patches/";
 const char* dir_patches_mat = "base/declTree/material2/art/wadtobrush/patches/";
 
-void WriteMaterial2(const char* subFolder, WadString name) {
-	const char* mat2_start =
-		"declType( material2 ) {\n"
-		"	inherit = \"template/pbr\";\n"
-		"	edit = {\n"
-		"		RenderLayers = {\n"
-		"			item[0] = {\n"
-		"				parms = {\n"
-		"					smoothness = {\n"
-		"						filePath = \"art/wadtobrush/black.tga\";\n"
-		"					}\n"
-		"					specular = {\n"
-		"						filePath = \"art/wadtobrush/black.tga\";\n"
-		"					}\n"
-		"					albedo = {\n"
-		"						filePath = \"";
+struct Color { // This BGRA variable order is what the TGA writer expects
+	uint8_t b = 0;
+	uint8_t g = 0;
+	uint8_t r = 0;
+	uint8_t a = 0;
+};
 
-	const char* mat2_end = 
-		"\";\n"
-		"					}\n"
-		"				}\n"
-		"			}\n"
-		"		}\n"
-		"	}\n"
-		"}";
+void WriteArtAsset(const char* subFolder, WadString name, Color* pixels, uint32_t width, uint32_t height) {
+
+	// PART ONE - Write the art file
+	std::string artPath = "base/art/wadtobrush/";
+	artPath.append(subFolder);
+	artPath.append(name);
+	artPath.append(".tga");
+	tga_write(artPath.data(), width, height, (uint8_t*)pixels, 4, 4);
+
+	// PART TWO - Write the material2 decl
+
+	const char* mat2_static =
+R"(declType( material2 ) {
+	inherit = "template/pbr";
+	edit = {
+		RenderLayers = {
+			item[0] = {
+				parms = {
+					smoothness = {
+						filePath = "art/wadtobrush/black.tga";
+					}
+					specular = {
+						filePath = "art/wadtobrush/black.tga";
+					}
+					albedo = {
+						filePath = "art/wadtobrush/%s%s.tga";
+					}
+				}
+			}
+		}
+	}
+})";
+
+	const char* mat2_staticAlpha =
+R"(declType( material2 ) {
+	inherit = "template/pbr_alphatest";
+	edit = {
+		RenderLayers = {
+			item[0] = {
+				parms = {
+					cover = {
+						filePath = "art/wadtobrush/%s%s.tga";
+					}
+					smoothness = {
+						filePath = "art/wadtobrush/black.tga";
+					}
+					specular = {
+						filePath = "art/wadtobrush/black.tga";
+					}
+					albedo = {
+						filePath = "art/wadtobrush/%s%s.tga";
+					}
+				}
+			}
+		}
+	}
+})";
+
+	bool useAlpha = false;
+	for(uint32_t i = 0, max = width * height; i < max; i++) {
+		if (pixels[i].a < 255) {
+			useAlpha = true;
+			break;
+		}
+	}
+
+	const size_t BUFFER_MAX = 1024;
+	char buffer[BUFFER_MAX];
+	int writtenLength = 0;
+
+	if(useAlpha) 
+		writtenLength = snprintf(buffer, BUFFER_MAX, mat2_staticAlpha, subFolder, name.Data(), subFolder, name.Data());
+	else 
+		writtenLength = snprintf(buffer, BUFFER_MAX, mat2_static, subFolder, name.Data());
+	if (writtenLength >= BUFFER_MAX) {
+		printf("\nERROR: MATERIAL2 BUFFER OVERRUN %s\n", name.Data());
+		return;
+	}
 
 	std::string matPath = "base/declTree/material2/art/wadtobrush/";
 	matPath.append(subFolder);
@@ -259,16 +319,9 @@ void WriteMaterial2(const char* subFolder, WadString name) {
 	matPath.append(".decl");
 
 	std::ofstream mat2Writer(matPath.data(), std::ios_base::binary);
-	mat2Writer << mat2_start << "art/wadtobrush/" << subFolder << name << ".tga" << mat2_end;
+	mat2Writer.write(buffer, writtenLength);
 	mat2Writer.close();
 }
-
-struct Color { // This BGRA variable order is what the TGA writer expects
-	uint8_t b = 0;
-	uint8_t g = 0;
-	uint8_t r = 0;
-	uint8_t a = 0;
-};
 
 struct PatchImage {
 	uint16_t width = 0;
@@ -351,7 +404,7 @@ void Wad::ExportTextures(bool exportWalls, bool exportFlats, bool exportPatches)
 		images = new PatchImage[imageCount];
 
 		//std::ofstream patchmeta("patchmeta.txt", std::ios_base::binary);
-		printf("%i Patches Found\n", imageCount);
+		printf("%i Wall Patches Found\n", imageCount);
 		//patchmeta << imageCount << " Patches Found\n";
 		for (int i = 0; i < imageCount; i++) {
 			PatchHeader patch;
@@ -399,15 +452,11 @@ void Wad::ExportTextures(bool exportWalls, bool exportFlats, bool exportPatches)
 				}
 			}
 			if (exportPatches) {
-				std::string filepath = dir_patches;
-				filepath.append(patch.name);
-				filepath.append(".tga");
-				tga_write(filepath.data(), patch.width, patch.height, (uint8_t*)pixels, 4, 4);
-
-				WriteMaterial2("patches/", patch.name);
+				printf("\r   - Exporting: %i / %i", i + 1, imageCount);
+				WriteArtAsset("patches/", patch.name, pixels, patch.width, patch.height);
 			}
-
 		}
+		printf("\n   - Done\n");
 		//patchmeta.close();
 		if (exportWalls) {
 			ExportTextures_Walls(images, "TEXTURE1");
@@ -443,7 +492,7 @@ struct MapTexture {
 void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 	if(lumpMap.find(name) == lumpMap.end())
 		return;
-	printf("Reading %s\n", name.Data());
+	printf("Reading Wall Textures from %s Lump\n", name.Data());
 
 	MapTexture texture;
 	MapPatch patchDef;
@@ -454,7 +503,7 @@ void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 	reader.Goto(startPosition);
 	reader.ReadLE(wallCount);
 
-	printf("%i Map Textures Found\n", wallCount);
+	printf("   - %i Wall Textures Found\n", wallCount);
 
 	for (int32_t i = 0; i < wallCount; i++) {
 		reader.ReadLE(texture.offset);
@@ -520,16 +569,14 @@ void Wad::ExportTextures_Walls(PatchImage* patches, WadString name) {
 			}
 
 		}
-		std::string filepath = dir_walls;
-		filepath.append(texture.name);
-		filepath.append(".tga");
-		tga_write(filepath.data(), texture.width, texture.height, (uint8_t*)pixels, 4, 4);
 
-		WriteMaterial2("walls/", texture.name);
-
+		printf("\r   - Exporting: %i / %i", i+1, wallCount);
+		WriteArtAsset("walls/", texture.name, pixels, texture.width, texture.height);
+		
 		//printf("\n");
 		delete[] pixels;
 	}
+	printf("\n   - Done\n");
 
 }
 
@@ -537,6 +584,8 @@ void Wad::ExportTextures_Flats(Color* palette) {
 	const int32_t flatSize = 4096;
 	Color flat[flatSize];
 
+	int foundFlats = 0;
+	printf("Scanning for Flat textures\n");
 	for (int i = 0; i < lumps.Num(); i++) {
 		// This will cause ANY 4096 byte lump to
 		// get interpreted as a texture, not just genuine flat textures
@@ -550,13 +599,8 @@ void Wad::ExportTextures_Flats(Color* palette) {
 			flat[c] = palette[colorIndex];
 		}
 
-		// Write the .tga
-		std::string path = dir_flats;
-		path.append(lumps[i].name.Data());
-		path.append(".tga");
-		tga_write(path.data(), 64, 64, (uint8_t*)flat, 4, 4);
-
-		// Write the material2 decl
-		WriteMaterial2("flats/", lumps[i].name);
+		printf("\r   - Found %i Flats", ++foundFlats);
+		WriteArtAsset("flats/", lumps[i].name, flat, 64, 64);
 	}
+	printf("\n   - Finished exporting Flats.\n");
 }

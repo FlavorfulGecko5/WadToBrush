@@ -7,6 +7,10 @@ class MapWriter {
 	VertexTransforms tforms;
 	std::unordered_map<WadString, DimFloat>& wallRatios;
 
+	const float flatScale;
+	const float flatXShift;
+	const float flatYShift;
+
 
 	// Must increment with every written brush
 	int brushHandle = 100000000;
@@ -16,9 +20,11 @@ class MapWriter {
 	MapWriter(WadLevel& level);
 	void SaveFile(WadString levelName);
 
-	void WriteBrush(const WallBrush& b);
-	void WriteBrush(const FloorBrush& b);
+	void WriteWallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, WadString texture, float offsetX);
+	void WriteFloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float height, bool isCeiling, WadString texture);
 
 	private:
+	void BeginBrushDef();
+	void EndBrushDef();
 	void WritePlane(const Plane p);
 };
