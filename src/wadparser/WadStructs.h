@@ -153,6 +153,11 @@ struct VertexFloat {
 	}
 };
 
+enum LineFlags : uint16_t {
+	UPPER_UNPEGGED = 0x08,
+	LOWER_UNPEGGED = 0x10
+};
+
 #define NO_SIDEDEF 0xFFFF
 
 struct LineDef {
@@ -258,9 +263,10 @@ struct WadLevel {
 
 	VertexTransforms transforms;
 	std::unordered_map<WadString, DimFloat> metersPerPixel;
+	std::unordered_map<WadString, Dimension>* wallDimensions = nullptr; // Need this for middle texture shenanigans
 
 	bool ReadFrom(BinaryReader &reader, VertexTransforms p_transforms,
-		std::unordered_map<WadString, Dimension>& wallDimensions);
+		std::unordered_map<WadString, Dimension>& p_wallDimensions);
 	void Debug();
 };
 

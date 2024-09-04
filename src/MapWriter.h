@@ -20,7 +20,7 @@ class MapWriter {
 	MapWriter(WadLevel& level);
 	void SaveFile(WadString levelName);
 
-	void WriteWallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, WadString texture, float offsetX);
+	void WriteWallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, float drawHeight, WadString texture, float offsetX);
 	void WriteFloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, float height, bool isCeiling, WadString texture);
 
 	private:

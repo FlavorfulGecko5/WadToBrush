@@ -6,19 +6,20 @@
 #include <unordered_map>
 
 bool WadLevel::ReadFrom(BinaryReader &reader, VertexTransforms p_transforms, 
-	std::unordered_map<WadString, Dimension>& wallDimensions) {
+	std::unordered_map<WadString, Dimension>& p_wallDimensions) {
 	
 	// Set transform data
 	transforms = p_transforms;
 	metersPerPixel.clear();
-	metersPerPixel.reserve(wallDimensions.size());
-	for (auto pair : wallDimensions) {
+	metersPerPixel.reserve(p_wallDimensions.size());
+	for (auto pair : p_wallDimensions) {
 		DimFloat dim;
 		dim.width = 1.0f / pair.second.width;
 		dim.height = 1.0f / pair.second.height;
 
 		metersPerPixel[pair.first] = dim;
 	}
+	wallDimensions = &p_wallDimensions;
 
 	// Read Vertices
 	reader.Goto(lumpVertex->offset);
@@ -599,8 +600,8 @@ void Wad::ExportTextures_Flats(Color* palette) {
 			flat[c] = palette[colorIndex];
 		}
 
-		printf("\r   - Found %i Flats", ++foundFlats);
+		printf("\r   - Exporting %i Flats", ++foundFlats);
 		WriteArtAsset("flats/", lumps[i].name, flat, 64, 64);
 	}
-	printf("\n   - Finished exporting Flats.\n");
+	printf("\n   - Done\n");
 }

@@ -48,7 +48,7 @@ void MapWriter::EndBrushDef() {
 	writer << "\n\t}\n}\n";
 }
 
-void MapWriter::WriteWallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, WadString texture, float offsetX) {
+void MapWriter::WriteWallBrush(VertexFloat v0, VertexFloat v1, float minHeight, float maxHeight, float drawHeight, WadString texture, float offsetX) {
 	Plane bounds[5]; // Untextured surfaces
 	Plane surface;   // Texture surface
 	Vector horizontal(v0, v1);
@@ -108,14 +108,12 @@ void MapWriter::WriteWallBrush(VertexFloat v0, VertexFloat v1, float minHeight, 
 	* We finalize this by adding the texture X offset to this value.
 	* The math works out such that the XY downscale cancels in both terms when
 	* the texture's X scale is multiplied in at the end.
-	*
-	* Currently, horizontal texture alignment can be considered finalized. But vertical alignment remains unstarted.
 	*/
 	float projection = ((horizontal.x * v0.x + horizontal.y * v0.y) / horizontal.Magnitude() - offsetX) * xScale * -1;
 
 
 	writer << "( " << surface.n.x << ' ' << surface.n.y << ' ' << surface.n.z << ' ' << -surface.d << " ) ";
-	writer << "( ( " << xScale << " 0 " << projection << " ) ( 0 " << yScale << " " << 0 << " ) ) \"art/wadtobrush/walls/" << texture.Data() << "\" 0 0 0";
+	writer << "( ( " << xScale << " 0 " << projection << " ) ( 0 " << yScale << " " << drawHeight * yScale << " ) ) \"art/wadtobrush/walls/" << texture.Data() << "\" 0 0 0";
 	EndBrushDef();
 }
 
@@ -153,7 +151,6 @@ void MapWriter::WriteFloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, flo
 	}
 
 	// PART 2: DRAW THE SURFACE
-	// TODO MUST FIX: CEILING BRUSHES ARE NOT ROTATED PROPERLY
 	BeginBrushDef();
 	for (int i = 0; i < 4; i++) {
 		writer << "\n\t\t";
@@ -161,9 +158,9 @@ void MapWriter::WriteFloorBrush(VertexFloat a, VertexFloat b, VertexFloat c, flo
 	}
 	writer << "\n\t\t";
 
-	// horizontal: (0, -1) Vertical (1, 0) - Ensures proper rotation of textures (for floors, FIX CEILINGS)
+	// horizontal: (0, -1) Vertical (1, 0) - Ensures proper rotation of textures (for floors)
 	writer << "( " << surface.n.x << ' ' << surface.n.y << ' ' << surface.n.z << ' ' << -surface.d << " ) ";
-	writer << "( ( 0 " << flatScale << " " << flatXShift << " ) ( " << -flatScale << " 0 " << flatYShift 
+	writer << "( ( 0 " <<  (isCeiling ? -flatScale : flatScale) << " " << flatXShift << " ) ( " << -flatScale << " 0 " << flatYShift
 		<< " ) ) \"art/wadtobrush/flats/" << texture.Data() << "\" 0 0 0";
 
 	EndBrushDef();

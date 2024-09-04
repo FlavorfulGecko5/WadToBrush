@@ -3,6 +3,7 @@
 #include <iostream>
 #include <earcut.hpp>
 #include <array>
+#include <filesystem>
 
 
 void BuildLevel(WadLevel& level) {
@@ -13,6 +14,8 @@ void BuildLevel(WadLevel& level) {
 		LineDef& line = level.linedefs[i];
 		VertexFloat v0(level.verts[line.vertexStart]);
 		VertexFloat v1(level.verts[line.vertexEnd]);
+		bool upperUnpegged = line.flags & UPPER_UNPEGGED;
+		bool lowerUnpegged = line.flags & LOWER_UNPEGGED;
 
 		// We assume linedefs can't have a back sidedef without a front
 		if(line.sideFront == NO_SIDEDEF)
@@ -27,22 +30,66 @@ void BuildLevel(WadLevel& level) {
 		simple.v1 = level.verts[line.vertexEnd];
 		frontSector.lines.push_back(simple);
 
+		/*
+		* Draw Height Rules:
+		*
+		* One Sided: Ceiling (Default) / Floor (Lower Unpegged)
+		* Lower Textures: Highest Floor (Default) / Ceiling the side is facing (Lower Unpegged) 
+			- WIKI IS INCORRECT: Falsely asserts Lower Unpegged draws it from the higher ceiling downward
+		* Upper Textures: Lowest Ceiling (Default) / Highest Ceiling (Upper Unpegged)
+		* Middle Textures:
+		*	- Do not repeat vertically - we must modify the brush bounds to account for this
+		*		- TODO: THIS QUIRK IS NOT YET IMPLEMENTED
+		*	- Highest Ceiling (Default) / Highest Floor (Lower Unpegged)
+		*
+		* No need for any crazy vector projection when calculating drawheight, so we can simply add in the
+		* vertical offset right now
+		*/
+
 		if (line.sideBack == NO_SIDEDEF) {
-			writer.WriteWallBrush(v0, v1, level.minHeight, level.maxHeight, frontSide.middleTexture, frontSide.offsetX);
+			float drawHeight = frontSide.offsetY + (lowerUnpegged ? frontSector.floorHeight : frontSector.ceilHeight);
+			// level.minHeight, level.maxHeight
+			writer.WriteWallBrush(v0, v1, frontSector.floorHeight, frontSector.ceilHeight, drawHeight, frontSide.middleTexture, frontSide.offsetX);
 		} else {
 			SideDef& backSide = level.sidedefs[line.sideBack];
 			Sector& backSector = level.sectors[backSide.sector];
 			backSector.lines.push_back(simple);
 
+			// Texture pegging is based on the lowest/highest floor/ceiling - so we must distinguish
+			// which values are smaller / larger - no way around this ugly chain of if statements unfortunately
+			float lowerFloor, lowerCeiling, higherFloor, higherCeiling;
+			if (frontSector.ceilHeight < backSector.ceilHeight) {
+				lowerCeiling = frontSector.ceilHeight;
+				higherCeiling = backSector.ceilHeight;
+			} else {
+				lowerCeiling = backSector.ceilHeight;
+				higherCeiling = frontSector.ceilHeight;
+			}
+			if (frontSector.floorHeight < backSector.floorHeight) {
+				lowerFloor = frontSector.floorHeight;
+				higherFloor = backSector.floorHeight;
+			} else {
+				lowerFloor = backSector.floorHeight;
+				higherFloor = frontSector.floorHeight;
+			}
+
 			// Brush the front sidedefs in relation to the back sector heights
 			if (frontSide.lowerTexture != "-") {
-				writer.WriteWallBrush(v0, v1, level.minHeight, backSector.floorHeight, frontSide.lowerTexture, frontSide.offsetX);
+				
+				//float drawHeight = frontSide.offsetY + (lowerUnpegged ? higherCeiling : higherFloor);
+				//float drawHeight = frontSide.offsetY + (lowerUnpegged ? frontSector.ceilHeight : frontSector.floorHeight);
+				float drawHeight = frontSide.offsetY + (lowerUnpegged ? frontSector.ceilHeight : higherFloor);
+				// level.minHeight, backSector.floorHeight
+				writer.WriteWallBrush(v0, v1, frontSector.floorHeight, backSector.floorHeight, drawHeight, frontSide.lowerTexture, frontSide.offsetX);
 			}
 			if (frontSide.middleTexture != "-") {
-				writer.WriteWallBrush(v0, v1, backSector.floorHeight, backSector.ceilHeight, frontSide.middleTexture, frontSide.offsetX);
+				float drawHeight = frontSide.offsetY + (lowerUnpegged ? higherFloor : higherCeiling);
+				writer.WriteWallBrush(v0, v1, backSector.floorHeight, backSector.ceilHeight, drawHeight, frontSide.middleTexture, frontSide.offsetX);
 			}
 			if (frontSide.upperTexture != "-") {
-				writer.WriteWallBrush(v0, v1, backSector.ceilHeight, level.maxHeight, frontSide.upperTexture, frontSide.offsetX);
+				float drawHeight = frontSide.offsetY + upperUnpegged ? higherCeiling : lowerCeiling;
+				// backSector.ceilHeight, level.maxHeight
+				writer.WriteWallBrush(v0, v1, backSector.ceilHeight, frontSector.ceilHeight, drawHeight, frontSide.upperTexture, frontSide.offsetX);
 			}
 
 			// Brush the back sidedefs in relation to the front sector heights
@@ -52,16 +99,20 @@ void BuildLevel(WadLevel& level) {
 			// BUG FIXED: Must swap start/end vertices to ensure texture is drawn on correct face
 			// and begins at correct position
 			if (backSide.lowerTexture != "-") {
-				//printf("Rear Back Texture %i \n", i);
-				writer.WriteWallBrush(v1, v0, level.minHeight, frontSector.floorHeight, backSide.lowerTexture, backSide.offsetX);
+				//float drawHeight = backSide.offsetY + lowerUnpegged ? higherCeiling : higherFloor;
+				//float drawHeight = backSide.offsetY + (lowerUnpegged ? backSector.ceilHeight : backSector.floorHeight);
+				float drawHeight = backSide.offsetY + lowerUnpegged ? backSector.ceilHeight : higherFloor;
+				// level.minHeight, frontSector.floorHeight
+				writer.WriteWallBrush(v1, v0, backSector.floorHeight, frontSector.floorHeight, drawHeight, backSide.lowerTexture, backSide.offsetX);
 			}
 			if (backSide.middleTexture != "-") {
-				//printf("Rear Middle Texture %i\n", i);
-				writer.WriteWallBrush(v1, v0, frontSector.floorHeight, frontSector.ceilHeight, backSide.middleTexture, backSide.offsetX);
+				float drawHeight = backSide.offsetY + (lowerUnpegged ? higherFloor : higherCeiling);
+				writer.WriteWallBrush(v1, v0, frontSector.floorHeight, frontSector.ceilHeight, drawHeight, backSide.middleTexture, backSide.offsetX);
 			}
 			if (backSide.upperTexture != "-") {
-				//printf("Rear upper Texture %i\n", i);
-				writer.WriteWallBrush(v1, v0, frontSector.ceilHeight, level.maxHeight, backSide.upperTexture, backSide.offsetX);
+				float drawHeight = backSide.offsetY + upperUnpegged ? higherCeiling : lowerCeiling;
+				// frontSector.ceilHeight, level.maxHeight
+				writer.WriteWallBrush(v1, v0, frontSector.ceilHeight, backSector.ceilHeight, drawHeight, backSide.upperTexture, backSide.offsetX);
 			}
 		}
 	}
@@ -176,19 +227,27 @@ int main(int argc, char* argv[]) {
 	#endif
 
 	using namespace std;
-	cout << "WadToBrush by FlavorfulGecko5 - EARLY ALPHA HOTFIX #2\n\n";
-	if (argc < 3) {
-		cout << "Usage: ./wadtobrush.exe [WAD] [Map] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]\n\n"
-			<< "[WAD] - Path to the .WAD file containing your level\n"
-			<< "[Map] - Name of the Map Header Lump (i.e. \"E1M1\" or \"MAP01\") (Case Sensitive)\n"
-			<< "[XY Downscale] - Map geometry will be horizontally downsized by this scale factor. Recommend at least a value of 10.\n"
-			<< "[Z Downscale] - Map geometry will be vertically downsized by this scale factor. Recommend at least a value of 10.\n"
-			<< "[X Shift] - Map geometry will be shifted this many X units. Use if your map is built far away from the origin.\n"
-			<< "[Y Shift] - Map geometry will be shifted this many Y units. Use if your map is built far away from the origin.\n";
-			return 0;
+
+	const char* helpMessage = 
+R"(Usage: ./wadtobrush.exe [WAD] [Map] [XY Downscale] [Z Downscale] [X Shift] [Y Shift]
+
+[WAD] - Path to the .WAD file containing your level
+[Map] - Name of the Map Header Lump (i.e. "E1M1" or "MAP01") (Case Sensitive)
+[XY Downscale] - Map geometry will be horizontally downsized by this scale factor. Recommend at least a value of 10.
+[Z Downscale] - Map geometry will be vertically downsized by this scale factor. Recommend at least a value of 10.
+[X Shift] - Map geometry will be shifted this many X units. Use if your map is built far away from the origin.
+[Y Shift] - Map geometry will be shifted this many Y units. Use if your map is built far away from the origin.
+
+Input [WAD] with no other arguments to export a WAD's textures instead of a level
+)";
+
+	cout << "WadToBrush by FlavorfulGecko5 - ALPHA VERSION 2\n\n";
+	if (argc < 2) {
+		cout << helpMessage;
+		return 0;
 	}
 	cout << "If you do not see a \"SUCCESS\" message after some time, this program has likely failed.\n";
-	cout << "At this time, only the VANILLA DOOM map format is supported.\n\n";
+	cout << "At this time, only the VANILLA DOOM WAD format is supported.\n\n";
 
 
 	Wad doomWad;
@@ -197,6 +256,17 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 	printf("Successfully read WAD from file.\n");
+
+
+	if (argc == 2) {
+		cout << "No level input detected. WadToBrush will run in Export Textures Mode\n";
+		std::filesystem::path outputDir = std::filesystem::absolute("base/");
+		cout << "Files will be output to " << outputDir.string() << "\nThis may take some time\n\n";
+
+		doomWad.ExportTextures(true, true, true);
+		cout << "SUCCESS - Texture exporting completed.\n";
+		return 0;
+	}
 
 
 	VertexTransforms transformations;
