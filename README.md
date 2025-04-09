@@ -1,3 +1,6 @@
+# THIS REPOSITORY IS DEPRECATED
+WadToBrush is now integrated into UltimateDoomBuilder. The standalone version of WadToBrush is completely obsolete and will no longer receive updates.
+
 # WadToBrush
 WadToBrush is a program for converting Classic Doom levels into Doom Eternal maps usable in idStudio. 
 
